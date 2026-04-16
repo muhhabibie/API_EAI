@@ -82,6 +82,25 @@ async function handleUpdateStatus(id, stat) {
     }
 }
 
+// Cancel order
+async function handleCancelOrder(orderId) {
+    if (!confirm(`Batalkan order #${orderId}? Stok akan dikembalikan.`)) return;
+    UI.updateInspector('POST', `${API}/orders/${orderId}/cancel`);
+    try {
+        const res = await fetch(`${API}/orders/${orderId}/cancel`, { method: 'POST' });
+        const data = await res.json();
+        UI.renderResponse(data);
+        if (res.ok) {
+            UI.showNotification(`✅ Order #${orderId} dibatalkan, stok dikembalikan`, "bg-green-600");
+            syncAll();
+        } else {
+            UI.showNotification(`❌ Gagal: ${data.message || data.error}`, "bg-red-600");
+        }
+    } catch (e) {
+        UI.showNotification("Error jaringan", "bg-black");
+    }
+}
+
 // Adjust stok product (increment/decrement)
 async function handleAdjustStock(id, amount) {
     UI.updateInspector('PATCH', `${API}/products/${id}/adjustment?amount=${amount}`);
@@ -244,6 +263,87 @@ async function handleEditProduct(id, currentName, currentPrice, currentStock) {
         }
     } catch (e) {
         UI.showNotification("Error!", "bg-black");
+    }
+}
+
+// INVENTORY: Cek Stok
+async function handleCheckStock() {
+    const productId = document.getElementById('invProductId').value;
+    if (!productId) {
+        UI.showNotification("Masukkan Product ID", "bg-orange-600");
+        return;
+    }
+    UI.updateInspector('GET', `${API}/inventory/${productId}`);
+    try {
+        const res = await fetch(`${API}/inventory/${productId}`);
+        const data = await res.json();
+        UI.renderResponse(data);
+        if (res.ok) {
+            document.getElementById('stockResult').innerHTML = `Stok: ${data.stock}`;
+            UI.showNotification(`Stok produk ID ${productId} = ${data.stock}`, "bg-blue-600");
+        } else {
+            document.getElementById('stockResult').innerHTML = `Error: ${data.error}`;
+            UI.showNotification(`Gagal: ${data.error}`, "bg-red-600");
+        }
+    } catch (e) {
+        UI.showNotification("Error jaringan", "bg-black");
+    }
+}
+
+// INVENTORY: Reserve Stok
+async function handleReserveStock() {
+    const productId = document.getElementById('reserveProdId').value;
+    const quantity = document.getElementById('reserveQty').value;
+    if (!productId || !quantity) {
+        UI.showNotification("Product ID dan Quantity wajib diisi", "bg-orange-600");
+        return;
+    }
+    const payload = { productId: parseInt(productId), quantity: parseInt(quantity) };
+    UI.updateInspector('POST', `${API}/inventory/reserve`, payload);
+    try {
+        const res = await fetch(`${API}/inventory/reserve`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        UI.renderResponse(data);
+        if (res.ok) {
+            document.getElementById('reserveResult').innerHTML = `Reservasi ID: ${data.id} (ACTIVE)`;
+            UI.showNotification(`Reservasi ID ${data.id} berhasil`, "bg-green-600");
+            document.getElementById('reserveProdId').value = '';
+            document.getElementById('reserveQty').value = '';
+        } else {
+            document.getElementById('reserveResult').innerHTML = `Error: ${data.error}`;
+            UI.showNotification(`Gagal: ${data.error}`, "bg-red-600");
+        }
+    } catch (e) {
+        UI.showNotification("Error jaringan", "bg-black");
+    }
+}
+
+// INVENTORY: Release Reservasi
+async function handleReleaseReservation() {
+    const reservationId = document.getElementById('releaseReserveId').value;
+    if (!reservationId) {
+        UI.showNotification("Masukkan Reservation ID", "bg-orange-600");
+        return;
+    }
+    UI.updateInspector('DELETE', `${API}/inventory/reserve/${reservationId}`);
+    try {
+        const res = await fetch(`${API}/inventory/reserve/${reservationId}`, { method: 'DELETE' });
+        const data = await res.json();
+        UI.renderResponse(data);
+        if (res.ok) {
+            document.getElementById('releaseResult').innerHTML = `Reservasi ${reservationId} released`;
+            UI.showNotification(`Reservasi ${reservationId} berhasil dilepas`, "bg-green-600");
+            document.getElementById('releaseReserveId').value = '';
+        } else {
+            document.getElementById('releaseResult').innerHTML = `Error: ${data.error}`;
+            UI.showNotification(`Gagal: ${data.error}`, "bg-red-600");
+        }
+    } catch (e) {
+        UI.showNotification("Error jaringan", "bg-black");
     }
 }
 
