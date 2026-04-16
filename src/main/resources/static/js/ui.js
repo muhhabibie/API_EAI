@@ -22,23 +22,20 @@ const UI = {
         setTimeout(() => { n.style.opacity = '0'; setTimeout(() => n.remove(), 500); }, 3000);
     },
 
-    renderDashboard(customers, products, orders) {
-        // --- PERBAIKAN DROPDOWN AGAR TIDAK RESET ---
+    renderDashboard(customers, products, orders, categories) {
+        // Update dropdown customer & product (tanpa reset pilihan)
         const custSelect = document.getElementById('custId');
         const prodSelect = document.getElementById('prodId');
 
-        // Hanya isi dropdown jika masih kosong (saat window.onload pertama kali)
         if (custSelect.innerHTML.trim() === "") {
             custSelect.innerHTML = customers.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
         }
 
-        // Untuk Produk, kita simpan pilihan user dulu sebelum di-update stoknya
         const currentPid = prodSelect.value;
         prodSelect.innerHTML = products.map(p => `<option value="${p.id}">${p.name} (Stock: ${p.stock})</option>`).join('');
-        if (currentPid) prodSelect.value = currentPid; 
-        // ------------------------------------------
+        if (currentPid) prodSelect.value = currentPid;
 
-        // 2. RENDER TABEL RIWAYAT TRANSAKSI
+        // Render tabel riwayat order
         document.getElementById('orderTableBody').innerHTML = orders.map(o => {
             const itemsHtml = o.items.map(item => `
                 <div class="flex items-center gap-2 mb-1 border-b border-slate-50 last:border-0 pb-1">
@@ -87,20 +84,47 @@ const UI = {
     },
 
     renderDatabaseView(customers, products, orders) {
-        document.getElementById('dbProdBody').innerHTML = products.map(p => `
+        // Tabel customers (dengan tombol Edit & Delete, serta kolom email)
+        document.getElementById('dbCustBody').innerHTML = customers.map(c => `
             <tr class="border-b">
-                <td class="p-2 font-bold text-slate-400">${p.id}</td>
-                <td class="p-2 font-medium">${p.name}</td>
-                <td class="p-2 flex items-center gap-1">
-                    <button onclick="handleAdjustStock(${p.id}, -1)" class="w-4 h-4 bg-red-100 text-red-600 rounded flex items-center justify-center font-bold text-[8px]">-</button>
-                    <span class="font-black text-blue-600 mx-1 text-[10px]">${p.stock}</span>
-                    <button onclick="handleAdjustStock(${p.id}, 1)" class="w-4 h-4 bg-green-100 text-green-600 rounded flex items-center justify-center font-bold text-[8px]">+</button>
-                    <button onclick="handleDeleteProduct(${p.id}, '${p.name}')" class="ml-2 text-slate-300 hover:text-red-500">🗑️</button>
+                <td class="p-2 font-bold text-blue-600">${c.id}</td>
+                <td class="p-2 font-medium">${c.name}</td>
+                <td class="p-2 text-[10px] text-slate-500">${c.email}</td>
+                <td class="p-2">
+                    <button onclick="handleEditCustomer(${c.id}, '${c.name.replace(/'/g, "\\'")}', '${c.email.replace(/'/g, "\\'")}', '${c.address ? c.address.replace(/'/g, "\\'") : ''}')" class="text-blue-500 hover:text-blue-700 mr-2 text-xs">✏️</button>
+                    <button onclick="handleDeleteCustomer(${c.id}, '${c.name.replace(/'/g, "\\'")}')" class="text-red-500 hover:text-red-700 text-xs">🗑️</button>
                 </td>
             </tr>
         `).join('');
 
-        document.getElementById('dbCustBody').innerHTML = customers.map(c => `<tr><td class="p-2 font-bold text-blue-600">${c.id}</td><td class="p-2 font-medium">${c.name}</td></tr>`).join('');
-        document.getElementById('dbOrderBody').innerHTML = orders.map(o => `<tr><td class="p-2 font-bold text-blue-600">${o.id}</td><td class="p-2 text-[8px] font-mono">${o.orderNumber}</td></tr>`).join('');
+        // Tabel products (dengan tombol Edit & Delete, serta kolom aksi adjust stok)
+        document.getElementById('dbProdBody').innerHTML = products.map(p => `
+            <tr class="border-b">
+                <td class="p-2 font-bold text-slate-400">${p.id}</td>
+                <td class="p-2 font-medium">${p.name}</td>
+                <td class="p-2 text-[10px]">Rp${p.price.toLocaleString()}</td>
+                <td class="p-2 flex items-center gap-1">
+                    <button onclick="handleAdjustStock(${p.id}, -1)" class="w-4 h-4 bg-red-100 text-red-600 rounded flex items-center justify-center font-bold text-[8px]">-</button>
+                    <span class="font-black text-blue-600 mx-1 text-[10px]">${p.stock}</span>
+                    <button onclick="handleAdjustStock(${p.id}, 1)" class="w-4 h-4 bg-green-100 text-green-600 rounded flex items-center justify-center font-bold text-[8px]">+</button>
+                    <button onclick="handleEditProduct(${p.id}, '${p.name.replace(/'/g, "\\'")}', ${p.price}, ${p.stock})" class="ml-2 text-blue-500 hover:text-blue-700 text-xs">✏️</button>
+                    <button onclick="handleDeleteProduct(${p.id}, '${p.name.replace(/'/g, "\\'")}')" class="text-red-500 hover:text-red-700 text-xs">🗑️</button>
+                 </td>
+            </tr>
+        `).join('');
+
+        // Tabel orders (ringkasan)
+        document.getElementById('dbOrderBody').innerHTML = orders.map(o => `
+            <tr class="border-b">
+                <td class="p-2 font-bold text-blue-600">${o.id}</td>
+                <td class="p-2 text-[8px] font-mono">${o.orderNumber}</td>
+                <td class="p-2 text-[10px] font-bold">Rp${o.totalAmount.toLocaleString()}</td>
+                <td class="p-2">
+                    <span class="px-1 py-0.5 rounded text-[8px] font-black ${o.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}">
+                        ${o.status}
+                    </span>
+                 </td>
+            </tr>
+        `).join('');
     }
 };
