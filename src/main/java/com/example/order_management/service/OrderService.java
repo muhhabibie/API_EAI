@@ -2,20 +2,22 @@ package com.example.order_management.service;
 
 import com.example.order_management.entity.*;
 import com.example.order_management.repository.*;
+import com.example.order_management.entity.Product;
+import com.example.order_management.repository.ProductRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 
-import com.example.order_management.repository.CustomerRepository;
-import com.example.order_management.repository.OrderRepository;
-
 @Service
 public class OrderService {
-    @Autowired private OrderRepository orderRepository;
-    @Autowired private CustomerRepository customerRepository;
-    @Autowired private ProductRepository productRepository;
+    @Autowired
+    private OrderRepository orderRepository;
+    @Autowired
+    private CustomerRepository customerRepository;
+    @Autowired
+    private ProductRepository productRepository;
 
     @Transactional
     public Order createOrder(Long customerId, List<ItemRequest> itemRequests) {
@@ -53,11 +55,14 @@ public class OrderService {
         order.setTotalAmount(total);
         return orderRepository.save(order);
     }
-    public List<Order> getOrdersByCustomer(Long customerId) {
-    return orderRepository.findByCustomerId(customerId);
-}
 
-    public List<Order> getAllOrders() { return orderRepository.findAll(); }
+    public List<Order> getOrdersByCustomer(Long customerId) {
+        return orderRepository.findByCustomerId(customerId);
+    }
+
+    public List<Order> getAllOrders() {
+        return orderRepository.findAll();
+    }
 
     public Order updateStatus(Long orderId, String status) {
         return orderRepository.findById(orderId).map(order -> {
@@ -69,9 +74,49 @@ public class OrderService {
     public static class ItemRequest {
         private Long productId;
         private Integer quantity;
-        public Long getProductId() { return productId; }
-        public void setProductId(Long productId) { this.productId = productId; }
-        public Integer getQuantity() { return quantity; }
-        public void setQuantity(Integer quantity) { this.quantity = quantity; }
+
+        public Long getProductId() {
+            return productId;
+        }
+
+        public void setProductId(Long productId) {
+            this.productId = productId;
+        }
+
+        public Integer getQuantity() {
+            return quantity;
+        }
+
+        public void setQuantity(Integer quantity) {
+            this.quantity = quantity;
+        }
+    }
+
+    public Order getOrderById(Long id) {
+        return orderRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Order tidak ditemukan dengan id: " + id));
+    }
+
+    @Transactional
+    public Order cancelOrder(Long id) {
+        Order order = orderRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Order tidak ditemukan dengan id: " + id));
+
+        if (order.getStatus().equalsIgnoreCase("SHIPPED") || order.getStatus().equalsIgnoreCase("DELIVERED")) {
+            throw new RuntimeException("Order dengan status " + order.getStatus() + " tidak dapat dibatalkan");
+        }
+        if (order.getStatus().equalsIgnoreCase("CANCELLED")) {
+            throw new RuntimeException("Order sudah dibatalkan sebelumnya");
+        }
+
+        // Kembalikan stok produk
+        for (OrderItem item : order.getItems()) {
+            Product product = item.getProduct();
+            product.setStock(product.getStock() + item.getQuantity());
+            productRepository.save(product);
+        }
+
+        order.setStatus("CANCELLED");
+        return orderRepository.save(order);
     }
 }
