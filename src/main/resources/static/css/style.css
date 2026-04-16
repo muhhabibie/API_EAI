@@ -1,0 +1,38 @@
+/* src/main/resources/static/css/style.css */
+.json-block { 
+    background: #1e1e1e; 
+    color: #9cdcfe; 
+    padding: 15px; 
+    border-radius: 8px; 
+    font-family: 'Courier New', monospace; 
+    font-size: 11px; 
+    overflow-x: auto; 
+    min-height: 80px; 
+    white-space: pre-wrap; 
+    word-break: break-all; 
+}
+.db-panel { 
+    border: 2px solid #e2e8f0; 
+    border-radius: 12px; 
+    background: #ffffff; 
+    overflow: hidden; 
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); 
+}
+.db-header { 
+    background: #1e293b; 
+    color: #f8fafc; 
+    padding: 10px; 
+    font-weight: 800; 
+    font-size: 11px; 
+    text-transform: uppercase; 
+    letter-spacing: 0.05em; 
+}
+.method-badge { padding: 4px 8px; border-radius: 4px; color: white; font-weight: bold; font-size: 10px; }
+.get { background: #61afef; } 
+.post { background: #98c379; } 
+.put { background: #d19a66; } 
+.patch { background: #c678dd; } 
+.delete { background: #e06c75; }
+
+@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+.notif-animation { animation: slideIn 0.5s ease-out; }
