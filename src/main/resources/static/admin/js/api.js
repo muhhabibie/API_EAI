@@ -3,7 +3,7 @@
  * Berfungsi untuk menangani semua request HTTP ke backend Spring Boot.
  */
 
-const API_BASE_URL = 'http://localhost:8080/api';
+const API_BASE_URL = '/api';
 
 // Helper function untuk mengirim log ke API Inspector di UI
 function logToInspector(method, endpoint, responseData, requestPayload = null) {
