@@ -276,21 +276,15 @@ async function renderOrders(orders) {
     let html = '';
     for (const order of orders) {
         let shippingHtml = '';
-        if (order.status === 'SHIPPED' || order.status === 'DELIVERED') {
-            try {
-                // Coba endpoint GET /api/shipments?orderId=...
-                const shipRes = await fetch(`${API_BASE_URL}/shipments?orderId=${order.id}`);
-                if (shipRes.ok) {
-                    const shipments = await shipRes.json();
-                    const shipment = shipments[0];
-                    if (shipment) {
-                        shippingHtml = `<div class="text-xs text-blue-600 mt-1">📦 Resi: ${shipment.trackingNumber || 'N/A'} | Status: ${shipment.status || order.status}</div>`;
-                    }
+        try {
+            const shipRes = await fetch(`${API_BASE_URL}/shipments/order/${order.id}`);
+            if (shipRes.ok) {
+                const shipment = await shipRes.json();
+                if (shipment) {
+                    shippingHtml = `<div class="text-xs text-blue-600 mt-1">📦 Resi: ${shipment.trackingNumber} | Status Kirim: ${shipment.status}</div>`;
                 }
-            } catch (e) {
-                console.log("Shipping API not available");
             }
-        }
+        } catch (e) {}
         const date = new Date(order.createdAt).toLocaleString('id-ID');
         html += `
             <div class="border rounded-xl p-4 bg-white shadow-sm">
