@@ -91,55 +91,66 @@ Aplikasi akan berjalan di `http://localhost:8080`.
 
 ## 📡 API Endpoints
 
+### Format Akses Endpoint API via Browser
+Untuk mengakses endpoint API melalui browser, gunakan format berikut:
+
+```
+https://<base-url>/<endpoint>
+```
+
+Contoh:
+- **GET** `/api/products` → `https://apieai-production-68fc.up.railway.app/api/products` (Rubah endpoint name paling belakang sesuai API yang dituju)
+- **GET** `/api/products/{id}` → `https://apieai-production-68fc.up.railway.app/api/products/1` (akses produk dengan ID 1)
+- **GET** `/api/orders/{id}` → `https://apieai-production-68fc.up.railway.app/api/orders/1` (akses order dengan ID 1)
+- **GET** `/api/customers/{id}` → `https://apieai-production-68fc.up.railway.app/api/customers/1` (akses customer dengan ID 1)
+
 ### Products
 | Method | Endpoint | Deskripsi |
 |--------|----------|-----------|
-| GET | /api/products | Semua produk |
-| GET | /api/products/{id} | Produk by ID |
-| POST | /api/products | Buat produk baru |
-| PUT | /api/products/{id} | Update produk |
-| DELETE | /api/products/{id} | Hapus produk |
-| PATCH | /api/products/{id}/adjustment | Tambah/kurang stok |
-
-### Customers
-| Method | Endpoint | Deskripsi |
-|--------|----------|-----------|
-| GET | /api/customers | Semua customer |
-| GET | /api/customers/{id} | Customer by ID |
-| POST | /api/customers | Buat customer baru |
-| PUT | /api/customers/{id} | Update customer |
-| DELETE | /api/customers/{id} | Hapus customer |
+| GET    | /api/products | Mendapatkan semua produk |
+| GET    | /api/products/{id} | Mendapatkan produk berdasarkan ID |
+| POST   | /api/products | Membuat produk baru |
+| PUT    | /api/products/{id} | Memperbarui produk |
+| DELETE | /api/products/{id} | Menghapus produk |
 
 ### Orders
 | Method | Endpoint | Deskripsi |
 |--------|----------|-----------|
-| GET | /api/orders | Semua order |
-| GET | /api/orders/{id} | Order by ID (dengan items) |
-| POST | /api/orders?customerId={id} | Buat order baru (body: items) |
-| PUT | /api/orders/{id}/status?status=xx | Update status order |
-| POST | /api/orders/{id}/cancel | Batalkan order (kembalikan stok) |
+| GET    | /api/orders | Mendapatkan semua order |
+| POST   | /api/orders?customerId={id} | Membuat order baru |
+| PUT    | /api/orders/{id}/status | Memperbarui status order |
+| POST   | /api/orders/{id}/cancel | Membatalkan order |
+
+### Customers
+| Method | Endpoint | Deskripsi |
+|--------|----------|-----------|
+| GET    | /api/customers | Mendapatkan semua customer |
+| GET    | /api/customers/{id} | Mendapatkan customer berdasarkan ID |
+| POST   | /api/customers | Membuat customer baru |
+| PUT    | /api/customers/{id} | Memperbarui customer |
+| DELETE | /api/customers/{id} | Menghapus customer |
 
 ### Categories
 | Method | Endpoint | Deskripsi |
 |--------|----------|-----------|
-| GET | /api/categories | Semua kategori |
-| GET | /api/categories/{id} | Kategori by ID |
-| POST | /api/categories | Buat kategori baru |
+| GET    | /api/categories | Mendapatkan semua kategori |
+| GET    | /api/categories/{id} | Mendapatkan kategori berdasarkan ID |
+| POST   | /api/categories | Membuat kategori baru |
 
 ### Inventory
 | Method | Endpoint | Deskripsi |
 |--------|----------|-----------|
-| GET | /api/inventory/{productId} | Cek stok produk |
-| POST | /api/inventory/reserve | Reserve stok (body: productId, quantity) |
-| DELETE | /api/inventory/reserve/{id} | Release reservasi |
+| GET    | /api/inventory/{productId} | Mengecek stok produk |
+| POST   | /api/inventory/reservations | Membuat reservasi stok |
+| DELETE | /api/inventory/reservations/{id} | Membatalkan reservasi stok |
 
 ### Shipping
 | Method | Endpoint | Deskripsi |
 |--------|----------|-----------|
-| POST | /api/shipments | Buat shipment baru (body: orderId, courierName) |
-| GET | /api/shipments/{id} | Shipment by ID |
-| GET | /api/shipments/order/{orderId} | Shipment by Order ID |
-| PUT | /api/shipments/{id}/status?status=xx | Update status shipment |
+| POST   | /api/shipments | Membuat pengiriman baru |
+| GET    | /api/shipments/{id} | Mendapatkan pengiriman berdasarkan ID |
+| GET    | /api/shipments/order/{orderId} | Mendapatkan pengiriman berdasarkan ID order |
+| PUT    | /api/shipments/{id}/status | Memperbarui status pengiriman |
 
 ## 🖥️ Tampilan Frontend
 
@@ -175,4 +186,11 @@ Aplikasi akan berjalan di `http://localhost:8080`.
 ## 📄 Lisensi
 
 Dibuat untuk keperluan akademik Universitas Brawijaya – Mata Kuliah Enterprise Application Integration.
-```
+
+## Daftar Link untuk Mengakses URL Hostingnya
+
+| Bagian         | Kode Markdown                                                                 |
+|----------------|-------------------------------------------------------------------------------|
+| Status Deploy  | ![Railway Deploy](https://img.shields.io/badge/Railway-Deployed-success?style=flat-square&logo=railway) |
+| Link Admin     | [Laman Admin](https://apieai-production-68fc.up.railway.app/admin/index.html) - https://apieai-production-68fc.up.railway.app/admin/index.html|
+| Link User      | [Laman User](https://apieai-production-68fc.up.railway.app/user/js/index.html) - https://apieai-production-68fc.up.railway.app/user/js/index.html |
