@@ -3,6 +3,7 @@ const API_BASE_URL = "http://localhost:8080/api";
 
 // ==================== GLOBAL VARIABLES ====================
 let currentCustomerId = null;
+let currentCustomerName = "";
 
 // ==================== HELPER FUNCTIONS ====================
 function formatRupiah(angka) {
@@ -123,21 +124,89 @@ function closeCartModal() {
     }
 }
 
-// ==================== FETCH CUSTOMERS (set default) ====================
-async function fetchCustomers() {
+// ==================== LOGIN / REGISTER / LOGOUT ====================
+async function loadCustomerDropdown() {
     try {
         const response = await fetch(`${API_BASE_URL}/customers`);
-        if (!response.ok) throw new Error("Gagal mengambil data customer");
+        if (!response.ok) throw new Error("Gagal mengambil customer");
         const customers = await response.json();
-        if (customers.length > 0) {
-            currentCustomerId = customers[0].id;
-            showNotification(`Login sebagai: ${customers[0].name}`, "info");
-            fetchOrders(); // Ambil riwayat order untuk customer default
-        } else {
-            showNotification("Belum ada customer, silakan daftar via admin", "error");
+        const select = document.getElementById('customerSelect');
+        if (select) {
+            select.innerHTML = '<option value="">-- Pilih Customer --</option>' + 
+                customers.map(c => `<option value="${c.id}">${c.name} (${c.email})</option>`).join('');
         }
     } catch (error) {
-        console.error("Error fetchCustomers:", error);
+        console.error("Error loadCustomerDropdown:", error);
+    }
+}
+
+function showLoginModal() {
+    loadCustomerDropdown();
+    const modal = document.getElementById('loginModal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+}
+
+function hideLoginModal() {
+    const modal = document.getElementById('loginModal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+}
+
+function login(customerId, customerName) {
+    currentCustomerId = customerId;
+    currentCustomerName = customerName;
+    localStorage.setItem('loggedInCustomerId', customerId);
+    localStorage.setItem('loggedInCustomerName', customerName);
+    
+    // Tampilkan user info di navbar
+    const userInfoDiv = document.getElementById('userInfo');
+    const userNameSpan = document.getElementById('loggedInUserName');
+    if (userInfoDiv && userNameSpan) {
+        userNameSpan.innerText = `Halo, ${customerName}`;
+        userInfoDiv.classList.remove('hidden');
+    }
+    
+    hideLoginModal();
+    fetchOrders(); // refresh order history
+    showNotification(`Login sebagai ${customerName}`, "success");
+}
+
+function logout() {
+    currentCustomerId = null;
+    currentCustomerName = "";
+    localStorage.removeItem('loggedInCustomerId');
+    localStorage.removeItem('loggedInCustomerName');
+    
+    const userInfoDiv = document.getElementById('userInfo');
+    if (userInfoDiv) userInfoDiv.classList.add('hidden');
+    
+    // Reset tampilan order history
+    document.getElementById('orderHistoryContainer').innerHTML = '<p class="text-gray-400 text-center">Silakan login terlebih dahulu</p>';
+    showNotification("Anda telah logout", "info");
+    showLoginModal();
+}
+
+async function registerAndLogin(name, email, address) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/customers`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, email, address })
+        });
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || "Gagal mendaftar");
+        }
+        const newCustomer = await response.json();
+        showNotification(`Berhasil mendaftar sebagai ${newCustomer.name}`, "success");
+        login(newCustomer.id, newCustomer.name);
+    } catch (error) {
+        showNotification(error.message, "error");
     }
 }
 
@@ -209,6 +278,7 @@ async function renderOrders(orders) {
         let shippingHtml = '';
         if (order.status === 'SHIPPED' || order.status === 'DELIVERED') {
             try {
+                // Coba endpoint GET /api/shipments?orderId=...
                 const shipRes = await fetch(`${API_BASE_URL}/shipments?orderId=${order.id}`);
                 if (shipRes.ok) {
                     const shipments = await shipRes.json();
@@ -217,7 +287,9 @@ async function renderOrders(orders) {
                         shippingHtml = `<div class="text-xs text-blue-600 mt-1">📦 Resi: ${shipment.trackingNumber || 'N/A'} | Status: ${shipment.status || order.status}</div>`;
                     }
                 }
-            } catch (e) {}
+            } catch (e) {
+                console.log("Shipping API not available");
+            }
         }
         const date = new Date(order.createdAt).toLocaleString('id-ID');
         html += `
@@ -265,7 +337,8 @@ async function cancelOrder(orderId) {
 // ==================== CHECKOUT ====================
 async function checkout() {
     if (!currentCustomerId) {
-        showNotification("Tidak ada customer yang dipilih. Silakan refresh halaman.", "error");
+        showNotification("Silakan login terlebih dahulu", "error");
+        showLoginModal();
         return;
     }
     const cart = getCart();
@@ -302,19 +375,98 @@ async function checkout() {
 // ==================== INITIALIZATION ====================
 document.addEventListener('DOMContentLoaded', () => {
     fetchProducts();
-    fetchCustomers(); // akan set currentCustomerId dan ambil riwayat
+    
+    // Cek apakah sudah login (localStorage)
+    const savedId = localStorage.getItem('loggedInCustomerId');
+    const savedName = localStorage.getItem('loggedInCustomerName');
+    if (savedId && savedName) {
+        currentCustomerId = savedId;
+        currentCustomerName = savedName;
+        const userInfoDiv = document.getElementById('userInfo');
+        const userNameSpan = document.getElementById('loggedInUserName');
+        if (userInfoDiv && userNameSpan) {
+            userNameSpan.innerText = `Halo, ${savedName}`;
+            userInfoDiv.classList.remove('hidden');
+        }
+        fetchOrders();
+    } else {
+        showLoginModal();
+    }
+    
     updateCartBadge();
     
+    // Event listeners untuk cart
     const cartIcon = document.getElementById('cartIcon');
-    const closeModal = document.getElementById('closeCartModal');
+    const closeCartModalBtn = document.getElementById('closeCartModal');
     const checkoutBtn = document.getElementById('checkoutBtn');
-    
     if (cartIcon) cartIcon.addEventListener('click', openCartModal);
-    if (closeModal) closeModal.addEventListener('click', closeCartModal);
+    if (closeCartModalBtn) closeCartModalBtn.addEventListener('click', closeCartModal);
     if (checkoutBtn) checkoutBtn.addEventListener('click', checkout);
     
+    // Login modal tab switching
+    const loginTab = document.getElementById('loginTabBtn');
+    const registerTab = document.getElementById('registerTabBtn');
+    const loginPanel = document.getElementById('loginPanel');
+    const registerPanel = document.getElementById('registerPanel');
+    if (loginTab && registerTab && loginPanel && registerPanel) {
+        loginTab.addEventListener('click', () => {
+            loginTab.classList.add('text-brand', 'border-brand');
+            loginTab.classList.remove('text-gray-400');
+            registerTab.classList.remove('text-brand', 'border-brand');
+            registerTab.classList.add('text-gray-400');
+            loginPanel.classList.remove('hidden');
+            registerPanel.classList.add('hidden');
+        });
+        registerTab.addEventListener('click', () => {
+            registerTab.classList.add('text-brand', 'border-brand');
+            registerTab.classList.remove('text-gray-400');
+            loginTab.classList.remove('text-brand', 'border-brand');
+            loginTab.classList.add('text-gray-400');
+            registerPanel.classList.remove('hidden');
+            loginPanel.classList.add('hidden');
+        });
+    }
+    
+    // Login button
+    const loginBtn = document.getElementById('loginBtn');
+    if (loginBtn) {
+        loginBtn.addEventListener('click', () => {
+            const select = document.getElementById('customerSelect');
+            const customerId = select.value;
+            if (!customerId) {
+                showNotification("Pilih customer terlebih dahulu", "error");
+                return;
+            }
+            const selectedOption = select.options[select.selectedIndex];
+            const customerName = selectedOption.text.split(' (')[0];
+            login(customerId, customerName);
+        });
+    }
+    
+    // Register button
+    const registerBtn = document.getElementById('registerBtn');
+    if (registerBtn) {
+        registerBtn.addEventListener('click', () => {
+            const name = document.getElementById('regName').value.trim();
+            const email = document.getElementById('regEmail').value.trim();
+            const address = document.getElementById('regAddress').value.trim();
+            if (!name || !email || !address) {
+                showNotification("Semua field harus diisi", "error");
+                return;
+            }
+            registerAndLogin(name, email, address);
+        });
+    }
+    
+    // Logout button
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) logoutBtn.addEventListener('click', logout);
+    
+    // Tutup modal jika klik di luar area
     window.addEventListener('click', (e) => {
         const modal = document.getElementById('cartModal');
         if (e.target === modal) closeCartModal();
+        const loginModal = document.getElementById('loginModal');
+        if (e.target === loginModal) hideLoginModal();
     });
 });
