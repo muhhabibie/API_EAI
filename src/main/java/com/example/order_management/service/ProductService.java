@@ -43,4 +43,22 @@ public class ProductService {
         }
         return false; 
     }
+
+    // FUNGSI BARU: Untuk menambah atau mengurangi stok secara manual
+    @org.springframework.transaction.annotation.Transactional
+    public Product updateStock(Long productId, int amountToAdd) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new RuntimeException("Produk dengan ID " + productId + " tidak ditemukan"));
+
+        // Hitung stok baru (amountToAdd bisa bernilai negatif jika admin menginput minus)
+        int newStock = product.getStock() + amountToAdd;
+        
+        // Validasi agar stok tidak menjadi minus di bawah 0
+        if (newStock < 0) {
+            throw new RuntimeException("Penyesuaian gagal: Stok akhir tidak boleh kurang dari 0.");
+        }
+        
+        product.setStock(newStock);
+        return productRepository.save(product);
+    }
 }

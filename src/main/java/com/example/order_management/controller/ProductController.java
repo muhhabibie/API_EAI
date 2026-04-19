@@ -24,25 +24,25 @@ import com.example.order_management.service.ProductService;
 import com.example.order_management.repository.ProductRepository;
 import org.springframework.web.server.ResponseStatusException;
 
-
 @RestController
 @CrossOrigin(origins = "*")
-@RequestMapping("/api/products") 
+@RequestMapping("/api/products")
 public class ProductController {
     @Autowired
     private ProductService productService;
     @Autowired
     private ProductRepository productRepository;
+
     @GetMapping
     public ResponseEntity<List<Product>> getAllProducts() {
-        return ResponseEntity.ok(productService.getAllProducts()); 
+        return ResponseEntity.ok(productService.getAllProducts());
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<Product> getProductById(@PathVariable Long id) {
         return productService.getProductById(id)
-                .map(ResponseEntity::ok) 
-                .orElseGet(() -> ResponseEntity.notFound().build()); 
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @PostMapping
@@ -51,25 +51,33 @@ public class ProductController {
         product.setName(request.getName());
         product.setPrice(request.getPrice());
         product.setStock(request.getStock());
-        
+
         Product saved = productService.createProduct(product);
         return new ResponseEntity<>(saved, HttpStatus.CREATED);
     }
+
     @PutMapping("/{id}")
     public ResponseEntity<Product> updateProduct(@PathVariable Long id, @RequestBody Product product) {
-    Product updated = productService.updateProduct(id, product);
-    if (updated != null) {
-        return ResponseEntity.ok(updated);
+        Product updated = productService.updateProduct(id, product);
+        if (updated != null) {
+            return ResponseEntity.ok(updated);
+        }
+        return ResponseEntity.notFound().build();
     }
-    return ResponseEntity.notFound().build();
-}
 
+    // ENDPOINT BARU: Menerima request dari Admin Dashboard
+    @PutMapping("/{id}/stock")
+    public ResponseEntity<Product> updateStock(@PathVariable Long id, @RequestParam int add) {
+        // Panggil productService untuk memproses perubahan stok
+        Product updatedProduct = productService.updateStock(id, add);
+        return ResponseEntity.ok(updatedProduct);
+    }
 
-   @DeleteMapping("/{id}")
+    @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteProduct(@PathVariable Long id) {
         // Mengecek apakah produk ada sebelum dihapus
         boolean isDeleted = productService.deleteProduct(id);
-        
+
         if (isDeleted) {
             // Status 204 No Content adalah standar pro untuk DELETE sukses
             return ResponseEntity.noContent().build();
@@ -79,18 +87,18 @@ public class ProductController {
 
     @PatchMapping("/{id}/adjustment")
     public ResponseEntity<Product> adjustStock(@PathVariable Long id, @RequestParam Integer amount) {
-    // Menggunakan ResponseStatusException bawaan Spring
-    Product product = productRepository.findById(id)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Produk tidak ditemukan"));
-    
-    int newStock = product.getStock() + amount;
-    
-    if (newStock < 0) {
-        // Melempar error 400 Bad Request jika stok minus
-        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Stok tidak boleh negatif!");
+        // Menggunakan ResponseStatusException bawaan Spring
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Produk tidak ditemukan"));
+
+        int newStock = product.getStock() + amount;
+
+        if (newStock < 0) {
+            // Melempar error 400 Bad Request jika stok minus
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Stok tidak boleh negatif!");
+        }
+
+        product.setStock(newStock);
+        return ResponseEntity.ok(productRepository.save(product));
     }
-    
-    product.setStock(newStock);
-    return ResponseEntity.ok(productRepository.save(product));
-}
 }

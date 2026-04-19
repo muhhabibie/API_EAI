@@ -68,4 +68,8 @@ public class ShippingService {
         return shipmentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Shipment tidak ditemukan untuk ID: " + id));
     }
+
+    public java.util.List<Shipment> getAllShipments() {
+        return shipmentRepository.findAll();
+    }
 }

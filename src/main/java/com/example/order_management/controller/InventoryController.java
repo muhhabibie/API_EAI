@@ -1,5 +1,6 @@
 package com.example.order_management.controller;
 
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,7 +31,13 @@ public class InventoryController {
         int stock = inventoryService.getStock(productId);
         return ResponseEntity.ok(Map.of("productId", productId, "stock", stock));
     }
-
+    
+    @GetMapping("/reservations")
+    public ResponseEntity<List<InventoryReservation>> getAllReservations() {
+    // Pastikan fungsi getAllReservations() juga ditambahkan di InventoryService
+        return ResponseEntity.ok(inventoryService.getAllReservations());
+    }
+    
     @PostMapping("/reservations")
     public ResponseEntity<InventoryReservation> reserveStock(@RequestBody Map<String, Object> payload) {
         Long productId = Long.valueOf(payload.get("productId").toString());

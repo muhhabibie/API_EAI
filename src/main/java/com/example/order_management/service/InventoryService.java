@@ -70,4 +70,8 @@ public class InventoryService {
         reservation.setStatus("COMPLETED");
         reservationRepository.save(reservation);
     }
+
+    public java.util.List<InventoryReservation> getAllReservations() {
+        return reservationRepository.findAll();
+    }
 }

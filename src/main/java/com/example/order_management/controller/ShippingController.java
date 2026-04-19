@@ -29,6 +29,11 @@ public class ShippingController {
         return new ResponseEntity<>(created, HttpStatus.CREATED);
     }
 
+    @GetMapping
+    public ResponseEntity<java.util.List<Shipment>> getAllShipments() {
+        return ResponseEntity.ok(shippingService.getAllShipments());
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<Shipment> getShipment(@PathVariable Long id) {
         return ResponseEntity.ok(shippingService.getShipmentById(id));
