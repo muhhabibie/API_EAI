@@ -31,11 +31,25 @@ const ApiService = {
     },
 
     async createProduct(payload) {
-        return await fetch(`${API}/products`, {
+        const res = await fetch(`${API}/products`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            // Jika Spring Boot kirim map error (misal: {name: "wajib isi", price: "minimal 100"})
+            // Kita gabungkan pesannya jadi satu string
+            const errorMsg = typeof data === 'object' 
+                ? Object.values(data).join(", ") 
+                : (data.message || "Gagal membuat produk");
+            
+            throw new Error(errorMsg);
+        }
+
+        return data;
     },
 
     async updateProduct(productId, payload) {

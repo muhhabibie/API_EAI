@@ -50,5 +50,12 @@ public class OrderController {
         Order cancelledOrder = orderService.cancelOrder(id);
         return ResponseEntity.ok(cancelledOrder);
     }
+      @PostMapping("/{id}/pay")
+    public ResponseEntity<Order> payOrder(
+        @PathVariable Long id, 
+        @RequestParam ("courier") String  courierName) { // User bisa pilih: JNE, J&T, POS, dll.
+    Order paidOrder = orderService.confirmPayment(id, courierName);
+    return ResponseEntity.ok(paidOrder);
+    }
 
 }

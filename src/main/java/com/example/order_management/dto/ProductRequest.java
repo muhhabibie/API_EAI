@@ -3,9 +3,13 @@ package com.example.order_management.dto;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.Pattern;
 
 public class ProductRequest {
     @NotBlank(message = "Nama produk wajib diisi")
+    @Size(min = 3, max = 100, message = "Nama produk minimal 3 dan maksimal 100 karakter")
+    @Pattern(regexp = "^[a-zA-Z0-9 ]*$", message = "Nama produk hanya boleh berisi huruf, angka, dan spasi")
     private String name;
 
     @NotNull(message = "Harga wajib diisi")

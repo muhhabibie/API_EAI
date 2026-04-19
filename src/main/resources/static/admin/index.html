@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seller Dashboard - EAI System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        /* Sembunyikan scrollbar agar lebih rapi seperti aplikasi */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+
+<body class="bg-slate-50 h-screen flex overflow-hidden font-sans">
+
+    <aside class="w-64 bg-slate-900 text-white flex flex-col shadow-2xl z-20">
+        <div class="p-6 border-b border-slate-800">
+            <h1 class="text-xl font-black uppercase tracking-tighter text-blue-400">EAI Admin</h1>
+            <p class="text-[10px] font-mono text-slate-400 mt-1">Status: Connected (8080)</p>
+        </div>
+        
+        <nav class="flex-1 py-4 flex flex-col gap-2 px-3">
+            <button onclick="switchMenu('orders')" id="menu-orders" class="nav-btn flex items-center gap-3 w-full p-3 rounded-lg text-left text-sm font-bold bg-blue-600 text-white transition-all">
+                🛒 Orders & Sales
+            </button>
+            <button onclick="switchMenu('products')" id="menu-products" class="nav-btn flex items-center gap-3 w-full p-3 rounded-lg text-left text-sm font-bold text-slate-400 hover:bg-slate-800 hover:text-white transition-all">
+                📦 Products
+            </button>
+            <button onclick="switchMenu('customers')" id="menu-customers" class="nav-btn flex items-center gap-3 w-full p-3 rounded-lg text-left text-sm font-bold text-slate-400 hover:bg-slate-800 hover:text-white transition-all">
+                👥 Customers
+            </button>
+            <button onclick="switchMenu('inventory')" id="menu-inventory" class="nav-btn flex items-center gap-3 w-full p-3 rounded-lg text-left text-sm font-bold text-slate-400 hover:bg-slate-800 hover:text-white transition-all">
+                🏭 Inventory & Sys Log
+            </button>
+        </nav>
+
+        <div class="p-4 border-t border-slate-800">
+            <button onclick="syncAll()" class="w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 p-2 rounded text-xs font-bold transition">
+                🔄 Refresh Data
+            </button>
+        </div>
+    </aside>
+
+    <main class="flex-1 flex flex-col h-screen overflow-hidden relative">
+        
+        <header class="bg-white shadow-sm px-8 py-4 flex justify-between items-center z-10">
+            <h2 id="page-title" class="text-lg font-black text-slate-800 uppercase tracking-wide">Orders Management</h2>
+            <div class="flex items-center gap-3">
+                <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                <span class="text-xs font-bold text-slate-500">System Online</span>
+            </div>
+        </header>
+
+        <div class="flex-1 overflow-y-auto p-8">
+
+            <div id="page-orders" class="page-section block space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <div class="flex items-center gap-2 mb-4">
+                        <span class="bg-blue-100 text-blue-700 text-[10px] px-2 py-1 rounded font-bold uppercase">New</span>
+                        <h3 class="font-bold text-slate-700 uppercase text-sm">Create Transaction</h3>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div>
+                            <label class="text-[10px] font-black text-slate-400 uppercase">Customer</label>
+                            <select id="custId" class="w-full p-2.5 border rounded-lg mt-1 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 text-sm outline-none"></select>
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-black text-slate-400 uppercase">Product</label>
+                            <select id="prodId" class="w-full p-2.5 border rounded-lg mt-1 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 text-sm outline-none"></select>
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-black text-slate-400 uppercase">Quantity</label>
+                            <input id="prodQty" type="number" value="1" min="1" class="w-full p-2.5 border rounded-lg mt-1 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 text-sm outline-none">
+                        </div>
+                    </div>
+                    <button onclick="handleExecuteOrder()" class="w-full bg-blue-600 text-white font-black py-3 rounded-xl hover:bg-blue-700 shadow-md transition-all active:scale-95 uppercase tracking-widest text-xs">
+                        🚀 PROCESS CHECKOUT
+                    </button>
+                </div>
+
+                <div class="bg-white p-0 rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="bg-slate-50 p-4 border-b border-slate-200 flex justify-between items-center">
+                        <h3 class="font-bold text-slate-700 uppercase text-sm">Order History & Shipping</h3>
+                    </div>
+                    <div class="overflow-x-auto p-4">
+                        <table class="w-full text-left text-sm">
+                            <thead class="text-slate-400 text-[10px] uppercase font-black tracking-widest border-b-2">
+                                <tr>
+                                    <th class="p-2 pb-4">ID / Invoice</th>
+                                    <th class="p-2 pb-4">Customer & Items</th>
+                                    <th class="p-2 pb-4">Total Amount</th>
+                                    <th class="p-2 pb-4 text-center">Status & Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="orderTableBody" class="divide-y divide-slate-100">
+                                </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="page-products" class="page-section hidden space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <h3 class="font-bold text-slate-700 uppercase text-sm mb-4">Add New Product</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                        <input type="text" id="newProdName" placeholder="Nama Produk" class="p-2.5 border rounded-lg text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-purple-500">
+                        <input type="number" id="newProdPrice" placeholder="Harga" class="p-2.5 border rounded-lg text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-purple-500">
+                        <input type="number" id="newProdStock" placeholder="Stok Awal" class="p-2.5 border rounded-lg text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-purple-500">
+                        <select id="newProdCategory" class="p-2.5 border rounded-lg text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-purple-500">
+                            <option value="">Pilih Kategori</option>
+                        </select>
+                    </div>
+                    <button onclick="handleCreateProduct()" class="w-full bg-purple-600 text-white font-black py-2 rounded-lg hover:bg-purple-700 text-xs uppercase tracking-wider">
+                        📦 CREATE PRODUCT
+                    </button>
+                </div>
+
+                <div class="bg-white p-0 rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="bg-slate-50 p-4 border-b border-slate-200"><h3 class="font-bold text-slate-700 uppercase text-sm">Product Database</h3></div>
+                    <table class="w-full text-[11px] text-left">
+                        <thead class="bg-slate-100 text-slate-500 font-bold uppercase">
+                            <tr>
+                                <th class="p-3">ID</th><th class="p-3">Name</th><th class="p-3">Price</th><th class="p-3">Stock Control & Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dbProdBody" class="divide-y divide-slate-100"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="page-customers" class="page-section hidden space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <h3 class="font-bold text-slate-700 uppercase text-sm mb-4">Register New Customer</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <input type="text" id="newCustName" placeholder="Nama Lengkap" class="p-2.5 border rounded-lg text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-emerald-500">
+                        <input type="email" id="newCustEmail" placeholder="Email Address" class="p-2.5 border rounded-lg text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-emerald-500">
+                        <input type="text" id="newCustAddress" placeholder="Alamat Pengiriman" class="p-2.5 border rounded-lg text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-emerald-500">
+                    </div>
+                    <button onclick="handleCreateCustomer()" class="w-full bg-emerald-600 text-white font-black py-2 rounded-lg hover:bg-emerald-700 text-xs uppercase tracking-wider">
+                        ➕ REGISTER CUSTOMER
+                    </button>
+                </div>
+
+                <div class="bg-white p-0 rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="bg-slate-50 p-4 border-b border-slate-200"><h3 class="font-bold text-slate-700 uppercase text-sm">Customer Database</h3></div>
+                    <table class="w-full text-[11px] text-left">
+                        <thead class="bg-slate-100 text-slate-500 font-bold uppercase">
+                            <tr>
+                                <th class="p-3">ID</th><th class="p-3">Name</th><th class="p-3">Email & Contact</th><th class="p-3">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dbCustBody" class="divide-y divide-slate-100"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="page-inventory" class="page-section hidden space-y-6">
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                        <h3 class="font-bold text-slate-700 uppercase text-sm mb-4">Warehouse & Reservasi</h3>
+                        <div class="space-y-4">
+                            <div class="border-b border-slate-100 pb-4">
+                                <p class="text-[10px] font-bold text-slate-400 uppercase mb-2">Check Real Stock</p>
+                                <div class="flex gap-2">
+                                    <input type="number" id="invProductId" placeholder="Product ID" class="w-full p-2 border rounded-lg text-sm bg-slate-50">
+                                    <button onclick="handleCheckStock()" class="bg-slate-800 text-white px-4 rounded-lg text-xs font-bold">CHECK</button>
+                                </div>
+                                <div id="stockResult" class="text-xs text-blue-600 font-bold mt-2"></div>
+                            </div>
+                            <div class="border-b border-slate-100 pb-4">
+                                <p class="text-[10px] font-bold text-slate-400 uppercase mb-2">Manual Reserve (EAI Test)</p>
+                                <div class="flex gap-2">
+                                    <input type="number" id="reserveProdId" placeholder="Prod ID" class="w-1/2 p-2 border rounded-lg text-sm bg-slate-50">
+                                    <input type="number" id="reserveQty" placeholder="Qty" class="w-1/2 p-2 border rounded-lg text-sm bg-slate-50">
+                                    <button onclick="handleReserveStock()" class="bg-green-600 text-white px-4 rounded-lg text-xs font-bold">RESERVE</button>
+                                </div>
+                                <div id="reserveResult" class="text-xs text-green-600 font-bold mt-2"></div>
+                            </div>
+                            <div>
+                                <p class="text-[10px] font-bold text-slate-400 uppercase mb-2">Release Reservation</p>
+                                <div class="flex gap-2">
+                                    <input type="number" id="releaseReserveId" placeholder="Reservation ID" class="w-full p-2 border rounded-lg text-sm bg-slate-50">
+                                    <button onclick="handleReleaseReservation()" class="bg-red-500 text-white px-4 rounded-lg text-xs font-bold">RELEASE</button>
+                                </div>
+                                <div id="releaseResult" class="text-xs text-red-600 font-bold mt-2"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-900 rounded-2xl shadow-xl border border-slate-800 flex flex-col overflow-hidden">
+                        <div class="bg-slate-800 p-3 border-b border-slate-700 flex justify-between items-center">
+                            <h3 class="font-bold text-white uppercase text-xs">Terminal / API Log</h3>
+                            <span class="text-[9px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded">EAI Monitor</span>
+                        </div>
+                        <div class="p-4 flex-1 space-y-4 overflow-y-auto font-mono text-[10px]">
+                            <div>
+                                <p class="text-orange-400 font-bold mb-1">>> LAST REQUEST:</p>
+                                <div id="reqBody" class="text-slate-300 bg-black/50 p-2 rounded whitespace-pre-wrap">Waiting for action...</div>
+                            </div>
+                            <div>
+                                <p class="text-green-400 font-bold mb-1"><< LAST RESPONSE:</p>
+                                <div id="resBody" class="text-slate-300 bg-black/50 p-2 rounded whitespace-pre-wrap">{ "status": "idle" }</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-0 rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="bg-slate-50 p-3 border-b border-slate-200"><h3 class="font-bold text-slate-700 uppercase text-xs">Raw Orders Table</h3></div>
+                    <table class="w-full text-[10px] text-left">
+                        <tbody id="dbOrderBody" class="divide-y divide-slate-100"></tbody>
+                    </table>
+                </div>
+
+            </div>
+
+        </div>
+    </main>
+
+    <script src="/js/app.js"></script>
+</body>
+
+</html>

@@ -1,12 +1,13 @@
 package com.example.order_management.service;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.example.order_management.entity.InventoryReservation;
 import com.example.order_management.entity.Product;
 import com.example.order_management.repository.InventoryReservationRepository;
 import com.example.order_management.repository.ProductRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class InventoryService {
@@ -52,6 +53,21 @@ public class InventoryService {
         productRepository.save(product);
 
         reservation.setStatus("RELEASED");
+        reservationRepository.save(reservation);
+    }
+        @Transactional
+    public void confirmReservation(Long productId, Integer quantity) {
+        // Mencari reservasi yang masih ACTIVE untuk produk & jumlah tersebut
+        // Dalam enterprise yang lebih kompleks, kita biasanya mencocokkan lewat reservationId
+        InventoryReservation reservation = reservationRepository.findAll().stream()
+            .filter(r -> r.getProductId().equals(productId) 
+                    && r.getQuantity().equals(quantity) 
+                    && "ACTIVE".equals(r.getStatus()))
+            .findFirst()
+            .orElseThrow(() -> new RuntimeException("Data reservasi aktif tidak ditemukan untuk produk ID: " + productId));
+
+        // Ubah status menjadi COMPLETED (Sah terjual)
+        reservation.setStatus("COMPLETED");
         reservationRepository.save(reservation);
     }
 }
