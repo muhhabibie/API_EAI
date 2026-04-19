@@ -12,12 +12,13 @@ Proyek ini adalah implementasi backend dan frontend untuk sistem manajemen order
 
 ### Backend (Spring Boot)
 - **CRUD Products, Customers, Categories** dengan validasi input.
-- **Order Management**: create order, get all orders, get order by id, update status, cancel order (dengan pengembalian stok).
+- **Order Management**: create order, get all orders, get order by id, update status, cancel order (dengan pengembalian stok, hanya untuk status PENDING).
 - **Inventory API**: cek stok, reserve stok, release reservasi.
+- **Shipping API**: create shipment, get shipment by order id, update status.
 - **Global Exception Handler** untuk validasi dan error.
-- **Database MySQL** dengan relasi antar entitas (Product, Customer, Order, OrderItem, Category, InventoryReservation).
+- **Database MySQL** dengan relasi antar entitas (Product, Customer, Order, OrderItem, Category, InventoryReservation, Shipment).
 
-### Frontend (Dashboard)
+### Frontend – Admin Dashboard (`/admin/index.html`)
 - **Create Transaction** (membuat order dengan pilihan customer, product, quantity).
 - **Order History** (tabel riwayat order dengan tombol SHIP dan CANCEL).
 - **CRUD Customers** (create, edit, delete) melalui panel khusus.
@@ -25,6 +26,15 @@ Proyek ini adalah implementasi backend dan frontend untuk sistem manajemen order
 - **Inventory Panel** (cek stok, reserve stok, release reservasi).
 - **API Inspector** (menampilkan request/response JSON dan cURL).
 - **MySQL Table Viewer** (menampilkan isi tabel customers, products, orders secara real-time).
+
+### Frontend – Halaman User / Marketplace (`/user/index.html`)
+- **Login/Register sederhana** (pilih customer dari daftar yang sudah ada atau daftar customer baru).
+- **Daftar produk** yang diambil langsung dari database (dinamis).
+- **Keranjang belanja** berbasis `localStorage` (tambah, ubah jumlah, hapus item).
+- **Checkout** (membuat order baru) dengan customer yang sedang login.
+- **Riwayat order** (menampilkan daftar pesanan milik customer yang login, lengkap dengan detail item).
+- **Shipping tracking** (menampilkan nomor resi dan status pengiriman untuk order yang sudah memiliki shipment).
+- **Cancel order** (hanya untuk order dengan status PENDING, stok akan dikembalikan).
 
 ## 🛠️ Prasyarat
 
@@ -73,6 +83,12 @@ server.port=8080
 ```
 Aplikasi akan berjalan di `http://localhost:8080`.
 
+## 🌐 Cara Mengakses
+
+- **Admin Dashboard**: `http://localhost:8080/admin/index.html`
+- **Halaman User (Marketplace)**: `http://localhost:8080/user/index.html`
+- **API Documentation (Swagger)**: `http://localhost:8080/swagger-ui/index.html` (jika berfungsi)
+
 ## 📡 API Endpoints
 
 ### Products
@@ -117,23 +133,35 @@ Aplikasi akan berjalan di `http://localhost:8080`.
 | POST | /api/inventory/reserve | Reserve stok (body: productId, quantity) |
 | DELETE | /api/inventory/reserve/{id} | Release reservasi |
 
+### Shipping
+| Method | Endpoint | Deskripsi |
+|--------|----------|-----------|
+| POST | /api/shipments | Buat shipment baru (body: orderId, courierName) |
+| GET | /api/shipments/{id} | Shipment by ID |
+| GET | /api/shipments/order/{orderId} | Shipment by Order ID |
+| PUT | /api/shipments/{id}/status?status=xx | Update status shipment |
+
 ## 🖥️ Tampilan Frontend
 
-Buka browser di `http://localhost:8080`. Dashboard terdiri dari:
-- **Create Transaction** (membuat order)
-- **Create Customer** dan **Create Product** panel
-- **Inventory Management** panel (cek stok, reserve, release)
-- **Filtered Order History** (tabel order dengan tombol SHIP dan CANCEL)
-- **API Inspector** (menampilkan request/response dan cURL)
-- **MySQL Physical Table View** (tabel customers, products, orders)
+### Admin Dashboard (`/admin/index.html`)
+- Sidebar dengan menu Orders, Products, Customers, Inventory.
+- Form create transaction, tabel order history, CRUD produk/customer, inventory management, API inspector.
+
+### Halaman User / Marketplace (`/user/index.html`)
+- Hero section, kategori dekoratif, daftar produk dari database.
+- Modal login/register (pilih customer atau daftar baru).
+- Ikon keranjang dengan badge, modal keranjang (ubah jumlah, hapus, total).
+- Tombol checkout, riwayat order dengan detail item, status, dan shipping tracking.
+- Tombol cancel order (hanya untuk status PENDING).
 
 ## 📝 Catatan Penting
 
 - Validasi input: harga produk tidak boleh negatif, email customer harus valid, stok tidak boleh negatif.
-- Order dengan status `SHIPPED` tidak dapat dibatalkan.
+- Order dengan status `SHIPPED` atau `DELIVERED` **tidak dapat dibatalkan**.
 - Cancel order akan mengembalikan stok produk.
 - Endpoint DELETE pada product/customer akan gagal jika data masih terkait dengan order (foreign key constraint).
 - Inventory API `reserve` langsung mengurangi stok; `release` mengembalikan stok.
+- Shipping API memerlukan `courierName` yang valid (`JNE`, `JNT`, `POS`, `TIKI`, `SICEPAT`).
 
 ## 📚 Teknologi yang Digunakan
 
