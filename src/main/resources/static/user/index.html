@@ -20,7 +20,7 @@
                     },
                     colors: {
                         brand: {
-                            DEFAULT: '#fd6700', // Warna Orange Qoin
+                            DEFAULT: '#fd6700',
                             light: '#ff8a33',
                             dark: '#cb3600',
                             surface: '#fff1e6'
@@ -31,13 +31,13 @@
         }
     </script>
     <style>
-        /* Sembunyikan scrollbar untuk area testimonial */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body class="bg-white text-gray-800 antialiased font-sans">
 
+    <!-- Navbar -->
     <nav class="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-100">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between items-center h-20">
@@ -53,15 +53,77 @@
                 </div>
 
                 <div class="flex items-center space-x-4">
-                    <button class="px-5 py-2 rounded-full border-2 border-brand text-brand font-bold text-sm hover:bg-brand/5 transition">Cobain</button>
-                    <button class="px-5 py-2.5 rounded-full bg-brand text-white font-bold text-sm hover:bg-brand-dark shadow-lg shadow-brand/30 transition">Masuk</button>
+                    <!-- Ikon Keranjang dengan Badge -->
+                    <div class="relative cursor-pointer" id="cartIcon">
+                        <svg class="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-1.5 6M17 13l1.5 6M9 21h6M12 21v-4"></path>
+                        </svg>
+                        <span id="cartBadge" class="absolute -top-2 -right-2 bg-brand text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">0</span>
+                    </div>
+                    <!-- User Info & Logout (hidden jika belum login) -->
+                    <div id="userInfo" class="hidden md:flex items-center gap-3">
+                        <span id="loggedInUserName" class="text-sm font-bold text-gray-700"></span>
+                        <button id="logoutBtn" class="text-xs text-red-500 hover:underline">Logout</button>
+                    </div>
                 </div>
             </div>
         </div>
     </nav>
 
+    <!-- Modal Keranjang -->
+    <div id="cartModal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center">
+        <div class="bg-white rounded-2xl w-full max-w-md p-6 relative">
+            <button id="closeCartModal" class="absolute top-3 right-3 text-gray-400 hover:text-gray-600">✕</button>
+            <h3 class="text-xl font-black text-gray-800 mb-4">Keranjang Belanjaku</h3>
+            <div id="cartItems" class="max-h-96 overflow-y-auto space-y-3 mb-4">
+                <p class="text-center text-gray-400">Keranjang kosong</p>
+            </div>
+            <div class="border-t pt-4">
+                <div class="flex justify-between font-bold text-lg">
+                    <span>Total:</span>
+                    <span id="cartTotal">Rp 0</span>
+                </div>
+                <button id="checkoutBtn" class="w-full bg-brand text-white font-bold py-2 rounded-full mt-4">Lanjutkan ke Checkout</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Login & Register -->
+    <div id="loginModal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center">
+        <div class="bg-white rounded-2xl w-full max-w-md p-6 relative">
+            <h3 class="text-xl font-black text-gray-800 mb-4">Login / Daftar</h3>
+            
+            <div class="mb-4">
+                <div class="flex border-b">
+                    <button id="loginTabBtn" class="flex-1 py-2 font-bold text-brand border-b-2 border-brand">Login</button>
+                    <button id="registerTabBtn" class="flex-1 py-2 font-bold text-gray-400">Daftar</button>
+                </div>
+            </div>
+
+            <!-- Panel Login -->
+            <div id="loginPanel">
+                <p class="text-sm text-gray-600 mb-2">Pilih customer yang sudah terdaftar:</p>
+                <select id="customerSelect" class="w-full p-3 border rounded-xl mb-4">
+                    <option value="">-- Pilih Customer --</option>
+                </select>
+                <button id="loginBtn" class="w-full bg-brand text-white font-bold py-2 rounded-full">Login</button>
+            </div>
+
+            <!-- Panel Register (awal hidden) -->
+            <div id="registerPanel" class="hidden">
+                <p class="text-sm text-gray-600 mb-2">Daftar customer baru:</p>
+                <input type="text" id="regName" placeholder="Nama Lengkap" class="w-full p-3 border rounded-xl mb-2">
+                <input type="email" id="regEmail" placeholder="Email" class="w-full p-3 border rounded-xl mb-2">
+                <input type="text" id="regAddress" placeholder="Alamat" class="w-full p-3 border rounded-xl mb-4">
+                <button id="registerBtn" class="w-full bg-green-600 text-white font-bold py-2 rounded-full">Daftar & Login</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-20 space-y-12">
         
+        <!-- Hero section -->
         <div class="text-center space-y-6 max-w-3xl mx-auto">
             <h1 class="text-4xl md:text-5xl font-black text-brand tracking-tight">Yuk, dukung produk lokal bareng!</h1>
             <p class="text-gray-500 font-medium">Dari jajanan kaki lima sampai brand lokal yang lagi naik daun, semua bisa kamu temuin lewat satu klik.</p>
@@ -92,9 +154,9 @@
             </div>
         </div>
 
+        <!-- Banner promosi -->
         <div class="w-full bg-gradient-to-r from-brand-light to-brand rounded-3xl p-8 md:p-12 flex flex-col md:flex-row items-center justify-between shadow-xl shadow-brand/20 relative overflow-hidden">
             <div class="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
-            
             <div class="w-full md:w-1/2 space-y-6 relative z-10">
                 <h2 class="text-3xl md:text-4xl font-black text-white leading-tight">Dukung UMKM lokal,<br>dapetin reward tiap kali belanja!</h2>
                 <button class="bg-white text-brand px-6 py-3 rounded-full font-black text-sm hover:bg-gray-50 transition shadow-md">
@@ -108,10 +170,10 @@
             </div>
         </div>
 
+        <!-- Kategori gambar statis (dekorasi) -->
         <div class="pt-8">
             <h3 class="text-2xl font-black text-brand mb-2">Eksplor yang Sesuai Selera Kamu ✨</h3>
             <p class="text-gray-500 mb-6 font-medium">Dari kafe sampai kerajinan, semua UMKM keren siap kamu temuin!</p>
-            
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div class="group relative h-48 rounded-3xl overflow-hidden cursor-pointer shadow-sm">
                     <img src="https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=400&q=80" alt="Kafe" class="w-full h-full object-cover group-hover:scale-110 transition duration-500">
@@ -136,6 +198,7 @@
             </div>
         </div>
 
+        <!-- Daftar Produk dari Database -->
         <div class="pt-8">
             <div class="flex justify-between items-end mb-6">
                 <div>
@@ -146,24 +209,9 @@
                     <span class="w-2 h-2 rounded-full bg-brand"></span> Lokasi Saya
                 </button>
             </div>
-            
             <div id="productGrid" class="grid grid-cols-2 md:grid-cols-4 gap-6">
+                <!-- Skeleton loader -->
                 <div class="animate-pulse flex flex-col gap-4 border border-gray-100 p-4 rounded-3xl">
-                    <div class="w-full h-32 bg-gray-200 rounded-2xl"></div>
-                    <div class="h-4 bg-gray-200 rounded w-3/4"></div>
-                    <div class="h-4 bg-gray-200 rounded w-1/2"></div>
-                </div>
-                <div class="animate-pulse flex flex-col gap-4 border border-gray-100 p-4 rounded-3xl">
-                    <div class="w-full h-32 bg-gray-200 rounded-2xl"></div>
-                    <div class="h-4 bg-gray-200 rounded w-3/4"></div>
-                    <div class="h-4 bg-gray-200 rounded w-1/2"></div>
-                </div>
-                <div class="animate-pulse flex flex-col gap-4 border border-gray-100 p-4 rounded-3xl hidden md:flex">
-                    <div class="w-full h-32 bg-gray-200 rounded-2xl"></div>
-                    <div class="h-4 bg-gray-200 rounded w-3/4"></div>
-                    <div class="h-4 bg-gray-200 rounded w-1/2"></div>
-                </div>
-                <div class="animate-pulse flex flex-col gap-4 border border-gray-100 p-4 rounded-3xl hidden md:flex">
                     <div class="w-full h-32 bg-gray-200 rounded-2xl"></div>
                     <div class="h-4 bg-gray-200 rounded w-3/4"></div>
                     <div class="h-4 bg-gray-200 rounded w-1/2"></div>
@@ -171,6 +219,15 @@
             </div>
         </div>
 
+        <!-- Riwayat Order -->
+        <div class="mt-8">
+            <h3 class="text-xl font-black text-brand mb-4">Pesanan Saya</h3>
+            <div id="orderHistoryContainer" class="space-y-4">
+                <p class="text-gray-400 text-center">Silakan login terlebih dahulu</p>
+            </div>
+        </div>
+
+        <!-- Bottom banner -->
         <div class="w-full bg-gradient-to-br from-brand to-[#ff9e5e] rounded-3xl p-8 flex flex-col md:flex-row items-center justify-between">
             <div class="space-y-4 max-w-md">
                 <h2 class="text-3xl font-black text-white">Udah Cobain UMKM Viral Ini Belum? 👀</h2>
@@ -182,19 +239,17 @@
                 <img src="https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=200&h=200&fit=crop" class="rounded-xl h-24 w-24 object-cover shadow-lg transform translate-y-4">
             </div>
         </div>
-
     </main>
 
+    <!-- Testimonial Section -->
     <section class="bg-brand py-20 overflow-hidden">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col lg:flex-row gap-12 items-center">
-            
             <div class="w-full lg:w-1/3 space-y-6 text-white text-center lg:text-left">
                 <div class="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center text-2xl mx-auto lg:mx-0">💬</div>
                 <h2 class="text-5xl font-black leading-tight">Apa Kata<br>Mereka 👀</h2>
                 <p class="text-white/80 font-medium">Cerita-cerita seru dari mereka yang udah dukung produk lokal!</p>
                 <button class="bg-white text-brand px-6 py-3 rounded-full font-bold shadow-lg hover:bg-gray-50 transition">Lihat Semua Ulasan ➔</button>
             </div>
-
             <div class="w-full lg:w-2/3 flex gap-6 overflow-x-auto no-scrollbar pb-8 pt-4 px-4 -mx-4 lg:mx-0">
                 <div class="bg-white rounded-3xl p-6 min-w-[300px] flex-shrink-0 shadow-xl shadow-black/10 transform transition hover:-translate-y-2">
                     <div class="flex items-center gap-3 mb-4">
@@ -228,49 +283,6 @@
         </div>
     </section>
 
-   <script src="/js/user-logic.js"
-        // Dummy data seolah-olah ditarik dari API Spring Boot kamu
-        const products = [
-            { id: 1, name: "Nasi Goreng Spesial", merchant: "Warung Bu Siti", price: 25000, img: "https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=400&q=80" },
-            { id: 2, name: "Kopi Susu Aren", merchant: "Kedai Senja", price: 18000, img: "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=400&q=80" },
-            { id: 3, name: "Keripik Pisang Coklat", merchant: "Cemilan Lokal", price: 15000, img: "https://images.unsplash.com/photo-1599490659213-e2b9527bd087?w=400&q=80" },
-            { id: 4, name: "Tas Anyam Rotan", merchant: "Artizano", price: 120000, img: "https://images.unsplash.com/photo-1591561954557-26941169b49e?w=400&q=80" }
-        ];
-
-        // Format Rupiah
-        const formatRp = (angka) => {
-            return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka);
-        };
-
-        // Render Data ke Grid "Lokal Banget"
-        window.addEventListener('DOMContentLoaded', () => {
-            const grid = document.getElementById('productGrid');
-            
-            // Hapus skeleton loaders setelah 1 detik (simulasi loading)
-            setTimeout(() => {
-                grid.innerHTML = '';
-                
-                products.forEach(prod => {
-                    const card = `
-                        <div class="group border border-gray-100 rounded-3xl p-4 hover:shadow-xl hover:border-brand/30 transition duration-300 bg-white flex flex-col h-full cursor-pointer">
-                            <div class="relative w-full h-40 rounded-2xl overflow-hidden mb-4">
-                                <img src="${prod.img}" alt="${prod.name}" class="w-full h-full object-cover group-hover:scale-110 transition duration-500">
-                                <div class="absolute top-2 right-2 bg-white/90 backdrop-blur text-xs font-bold px-2 py-1 rounded-lg">⭐ 4.8</div>
-                            </div>
-                            <div class="flex flex-col flex-grow">
-                                <p class="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">${prod.merchant}</p>
-                                <h4 class="font-black text-gray-800 text-sm mb-2 line-clamp-2">${prod.name}</h4>
-                                <div class="mt-auto flex items-end justify-between">
-                                    <span class="font-black text-brand text-lg">${formatRp(prod.price)}</span>
-                                    <button class="w-8 h-8 bg-brand-surface text-brand rounded-full flex justify-center items-center hover:bg-brand hover:text-white transition font-bold">+</button>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                    grid.innerHTML += card;
-                });
-            }, 1000); // Waktu loading pura-pura
-        });
-    </script>
+    <script src="js/user-logic.js"></script>
 </body>
 </html>
