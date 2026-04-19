@@ -32,22 +32,47 @@ const AdminUI = {
     // Fungsi utama untuk merender seluruh halaman
     renderDashboard(customers, products, orders, categories, shipments, reservations) {
         this.renderOrderTableOnly(orders);
-        // 1. Update Statistik Overview (Dashboard Utama)
+       // 1. Update Statistik Overview (Dashboard Utama)
         const activeRes = reservations ? reservations.filter(r => r.status === 'ACTIVE').length : 0;
-        const pendingShip = shipments ? shipments.filter(s => s.status === 'PENDING').length : 0;
+        const pendingShip = shipments ? shipments.filter(s => s.status === 'PENDING' || s.status === 'PROCESSING').length : 0;
         
-        document.getElementById('statReservations').innerText = activeRes;
-        document.getElementById('statShipments').innerText = pendingShip;
+        const elStatRes = document.getElementById('statReservations');
+        const elStatShip = document.getElementById('statShipments');
+        if(elStatRes) elStatRes.innerText = activeRes;
+        if(elStatShip) elStatShip.innerText = pendingShip;
 
-        //Update Transaction Flow Pipeline
-        const newOrders = orders ? orders.filter(o => o.status === 'PENDING').length : 0;
-        const paidOrders = orders ? orders.filter(o => o.status === 'PAID').length : 0;
-        const shippedOrders = orders ? orders.filter(o => o.status === 'SHIPPED' || o.status === 'COMPLETED').length : 0;
+        // ====================================================
+        // PERBAIKAN: Update Transaction Flow Pipeline (EAI)
+        // ====================================================
+        const elFlowNew = document.getElementById('flowNew');
+        const elFlowRes = document.getElementById('flowReserved');
+        const elFlowPaid = document.getElementById('flowPaid');
+        const elFlowShip = document.getElementById('flowShipped');
 
-        document.getElementById('flowNew').innerText = newOrders;
-        document.getElementById('flowReserved').innerText = activeRes; 
-        document.getElementById('flowPaid').innerText = paidOrders;
-        document.getElementById('flowShipped').innerText = shippedOrders;
+        if(elFlowNew && elFlowRes && elFlowPaid && elFlowShip) {
+            // Step 1: Pesanan Baru (Dari Modul Order)
+            const newOrders = orders ? orders.filter(o => o.status === 'PENDING').length : 0;
+            
+            // Step 2: Stok Terkunci (Dari Modul Inventory) - Sudah diwakili oleh activeRes
+            
+            // Step 3: Dibayar (Dari Modul Order)
+            const paidOrders = orders ? orders.filter(o => o.status === 'PAID').length : 0;
+            
+            // Step 4: Shipped / Done (Dari Modul Shipping/Logistics)
+            // Kita buat dinamis agar menangkap semua variasi kata dari backend
+            const shippedOrders = shipments ? shipments.filter(s => 
+                s.status === 'IN_TRANSIT' || 
+                s.status === 'DELIVERED' || 
+                s.status === 'SHIPPED' || 
+                s.status === 'COMPLETED'
+            ).length : 0;
+
+            // Render ke HTML
+            elFlowNew.innerText = newOrders;
+            elFlowRes.innerText = activeRes; 
+            elFlowPaid.innerText = paidOrders;
+            elFlowShip.innerText = shippedOrders; // Sekarang akan otomatis naik!
+        }
 
         // 2. Render Order History
         const orderBody = document.getElementById('orderTableBody');
