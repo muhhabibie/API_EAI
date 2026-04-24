@@ -53,17 +53,25 @@
                 </div>
 
                 <div class="flex items-center space-x-4">
-                    <!-- Ikon Keranjang dengan Badge -->
                     <div class="relative cursor-pointer" id="cartIcon">
                         <svg class="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-1.5 6M17 13l1.5 6M9 21h6M12 21v-4"></path>
                         </svg>
                         <span id="cartBadge" class="absolute -top-2 -right-2 bg-brand text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">0</span>
                     </div>
-                    <!-- User Info & Logout (hidden jika belum login) -->
-                    <div id="userInfo" class="hidden md:flex items-center gap-3">
-                        <span id="loggedInUserName" class="text-sm font-bold text-gray-700"></span>
-                        <button id="logoutBtn" class="text-xs text-red-500 hover:underline">Logout</button>
+
+                    <div id="navAuthSection">
+                        <button id="navLoginBtn" class="bg-brand text-white px-5 py-2 rounded-full font-bold text-sm shadow-md hover:bg-brand-dark transition">
+                            Login
+                        </button>
+                    </div>
+
+                    <div id="userInfo" class="hidden items-center gap-3">
+                        <div class="flex flex-col items-end">
+                            <span id="loggedInUserName" class="text-xs font-black text-gray-700"></span>
+                            <button id="logoutBtn" class="text-[10px] text-red-500 font-bold hover:underline">Logout</button>
+                        </div>
+                        <div class="w-8 h-8 bg-brand-surface rounded-full flex items-center justify-center text-brand font-bold text-xs">U</div>
                     </div>
                 </div>
             </div>
@@ -102,20 +110,49 @@
 
             <!-- Panel Login -->
             <div id="loginPanel">
-                <p class="text-sm text-gray-600 mb-2">Pilih customer yang sudah terdaftar:</p>
-                <select id="customerSelect" class="w-full p-3 border rounded-xl mb-4">
-                    <option value="">-- Pilih Customer --</option>
-                </select>
+                <p class="text-sm text-gray-600 mb-2">Masukkan email dan password:</p>
+                <input type="email" id="loginEmail" placeholder="Email (cth: john@example.com)" class="w-full p-3 border rounded-xl mb-3">
+                
+                <div class="relative mb-5">
+                    <input type="password" id="loginPassword" placeholder="Password" class="w-full p-3 border rounded-xl pr-10">
+                    <button type="button" onclick="togglePassword('loginPassword', 'loginEyeIcon')" class="absolute inset-y-0 right-3 flex items-center text-gray-400 hover:text-brand transition">
+                        <svg id="loginEyeIcon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                    </button>
+                </div>
+                
                 <button id="loginBtn" class="w-full bg-brand text-white font-bold py-2 rounded-full">Login</button>
             </div>
 
-            <!-- Panel Register (awal hidden) -->
             <div id="registerPanel" class="hidden">
                 <p class="text-sm text-gray-600 mb-2">Daftar customer baru:</p>
                 <input type="text" id="regName" placeholder="Nama Lengkap" class="w-full p-3 border rounded-xl mb-2">
                 <input type="email" id="regEmail" placeholder="Email" class="w-full p-3 border rounded-xl mb-2">
-                <input type="text" id="regAddress" placeholder="Alamat" class="w-full p-3 border rounded-xl mb-4">
-                <button id="registerBtn" class="w-full bg-green-600 text-white font-bold py-2 rounded-full">Daftar & Login</button>
+                <input type="text" id="regAddress" placeholder="Alamat" class="w-full p-3 border rounded-xl mb-2">
+                
+                <div class="relative mb-2">
+                    <input type="password" id="regPassword" placeholder="Password" class="w-full p-3 border rounded-xl pr-10">
+                    <button type="button" onclick="togglePassword('regPassword', 'regEyeIcon')" class="absolute inset-y-0 right-3 flex items-center text-gray-400 hover:text-brand transition">
+                        <svg id="regEyeIcon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="relative mb-5">
+                    <input type="password" id="regConfirmPassword" placeholder="Tulis Ulang Password" class="w-full p-3 border rounded-xl pr-10">
+                    <button type="button" onclick="togglePassword('regConfirmPassword', 'regConfirmEyeIcon')" class="absolute inset-y-0 right-3 flex items-center text-gray-400 hover:text-brand transition">
+                        <svg id="regConfirmEyeIcon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                    </button>
+                </div>
+
+                <button id="registerBtn" class="w-full bg-green-600 text-white font-bold py-2 rounded-full hover:bg-green-700 transition">Daftar & Login</button>
             </div>
         </div>
     </div>

@@ -9,6 +9,24 @@ let currentCustomerName = "";
 function formatRupiah(angka) {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka);
 }
+// Fungsi untuk membuka/menutup mata password
+function togglePassword(inputId, iconId) {
+    const input = document.getElementById(inputId);
+    const icon = document.getElementById(iconId);
+    
+    // Ikon Mata Terbuka
+    const eyeOpen = `<path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />`;
+    // Ikon Mata Tertutup (Dicoret)
+    const eyeClosed = `<path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />`;
+
+    if (input.type === "password") {
+        input.type = "text";
+        icon.innerHTML = eyeClosed;
+    } else {
+        input.type = "password";
+        icon.innerHTML = eyeOpen;
+    }
+}
 
 function showNotification(message, type = "success") {
     const bgColor = type === "success" ? "bg-green-500" : (type === "error" ? "bg-red-500" : "bg-blue-500");
@@ -19,17 +37,48 @@ function showNotification(message, type = "success") {
     setTimeout(() => notification.remove(), 3000);
 }
 
+// Fungsi pengganti fetch() biasa, otomatis menyelipkan JWT Token
+async function fetchWithAuth(url, options = {}) {
+    const token = localStorage.getItem('jwt_token');
+    
+    const headers = {
+        'Content-Type': 'application/json',
+        ...options.headers
+    };
+
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`; // Menyelipkan token ke Security
+    }
+
+    const response = await fetch(url, { ...options, headers });
+    
+    // Jika token kedaluwarsa atau tidak valid (Error 401 Unauthorized)
+    if (response.status === 401) {
+        logout();
+        showNotification("Sesi habis, silakan login kembali.", "error");
+    }
+    return response;
+}
 // ==================== CART (LOCALSTORAGE) ====================
+function getCartStorageKey() {
+    const userEmail = localStorage.getItem('loggedInCustomerName');
+    // Jika login, namanya "shoppingCart_emailnya". Jika belum, "shoppingCart_guest"
+    return userEmail ? `shoppingCart_${userEmail}` : 'shoppingCart_guest';
+}
+
 function getCart() {
-    const cart = localStorage.getItem('shoppingCart');
+    const key = getCartStorageKey(); // Gunakan laci yang spesifik
+    const cart = localStorage.getItem(key);
     return cart ? JSON.parse(cart) : [];
 }
 
 function saveCart(cart) {
-    localStorage.setItem('shoppingCart', JSON.stringify(cart));
+    const key = getCartStorageKey(); // Gunakan laci yang spesifik
+    localStorage.setItem(key, JSON.stringify(cart));
     updateCartBadge();
     renderCartModal();
 }
+
 
 function updateCartBadge() {
     const cart = getCart();
@@ -39,6 +88,17 @@ function updateCartBadge() {
 }
 
 function addToCart(productId, name, price) {
+    // 1. Cek apakah ada token JWT
+    const token = localStorage.getItem('jwt_token');
+
+    // 2. Jika tidak ada token, batalkan proses dan tampilkan login
+    if (!token) {
+        showNotification("Silakan login terlebih dahulu untuk menambah barang", "error");
+        showLoginModal(); // Munculkan modal login
+        return; // Hentikan fungsi di sini
+    }
+
+    // Kode di bawah ini hanya jalan jika sudah login
     let cart = getCart();
     const existing = cart.find(item => item.productId === productId);
     if (existing) {
@@ -66,7 +126,8 @@ function updateCartItemQuantity(productId, delta) {
 }
 
 function clearCart() {
-    localStorage.removeItem('shoppingCart');
+    const key = getCartStorageKey(); // Bersihkan laci yang spesifik
+    localStorage.removeItem(key);
     updateCartBadge();
     renderCartModal();
 }
@@ -108,6 +169,17 @@ function renderCartModal() {
 
 // ==================== MODAL CART ====================
 function openCartModal() {
+    // 1. Cek apakah ada token JWT
+    const token = localStorage.getItem('jwt_token');
+
+    // 2. Jika tidak ada token, arahkan ke login
+    if (!token) {
+        showNotification("Silakan login untuk melihat keranjang Anda", "error");
+        showLoginModal();
+        return;
+    }
+
+    // Kode di bawah ini hanya jalan jika sudah login
     const modal = document.getElementById('cartModal');
     if (modal) {
         renderCartModal();
@@ -125,23 +197,9 @@ function closeCartModal() {
 }
 
 // ==================== LOGIN / REGISTER / LOGOUT ====================
-async function loadCustomerDropdown() {
-    try {
-        const response = await fetch(`${API_BASE_URL}/customers`);
-        if (!response.ok) throw new Error("Gagal mengambil customer");
-        const customers = await response.json();
-        const select = document.getElementById('customerSelect');
-        if (select) {
-            select.innerHTML = '<option value="">-- Pilih Customer --</option>' + 
-                customers.map(c => `<option value="${c.id}">${c.name} (${c.email})</option>`).join('');
-        }
-    } catch (error) {
-        console.error("Error loadCustomerDropdown:", error);
-    }
-}
+// ==================== LOGIN / REGISTER / LOGOUT ====================
 
 function showLoginModal() {
-    loadCustomerDropdown();
     const modal = document.getElementById('loginModal');
     if (modal) {
         modal.classList.remove('hidden');
@@ -157,54 +215,120 @@ function hideLoginModal() {
     }
 }
 
-function login(customerId, customerName) {
-    currentCustomerId = customerId;
-    currentCustomerName = customerName;
-    localStorage.setItem('loggedInCustomerId', customerId);
-    localStorage.setItem('loggedInCustomerName', customerName);
-    
-    // Tampilkan user info di navbar
-    const userInfoDiv = document.getElementById('userInfo');
-    const userNameSpan = document.getElementById('loggedInUserName');
-    if (userInfoDiv && userNameSpan) {
-        userNameSpan.innerText = `Halo, ${customerName}`;
-        userInfoDiv.classList.remove('hidden');
+async function loginUser(email, password) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: email, password: password })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            
+            // 1. Simpan JWT Token ke localStorage
+            localStorage.setItem('jwt_token', data.token);
+            
+            // 2. Simpan identitas user
+            currentCustomerName = email; 
+            localStorage.setItem('loggedInCustomerName', email);
+            
+            // 3. Update tampilan UI Navbar
+            const navAuthSection = document.getElementById('navAuthSection');
+            const userInfoDiv = document.getElementById('userInfo');
+            const userNameSpan = document.getElementById('loggedInUserName');
+            
+            if (navAuthSection) navAuthSection.classList.add('hidden'); 
+            if (userInfoDiv && userNameSpan) {
+                userNameSpan.innerText = email; 
+                userInfoDiv.classList.remove('hidden'); 
+                userInfoDiv.classList.add('flex');      
+            }
+            
+            hideLoginModal();
+            fetchOrders(); 
+            
+            // 4. AMBIL DATA KERANJANG MILIK AKUN INI SEKARANG JUGA
+            updateCartBadge(); 
+            
+            showNotification(data.message || "Login berhasil!", "success");
+        }
+    } catch (error) {
+        showNotification("Terjadi kesalahan jaringan", "error");
     }
-    
-    hideLoginModal();
-    fetchOrders(); // refresh order history
-    showNotification(`Login sebagai ${customerName}`, "success");
 }
 
 function logout() {
+    // 1. Hapus memori variabel
     currentCustomerId = null;
     currentCustomerName = "";
+    
+    // 2. Hapus token dan data dari Storage (TAPI JANGAN HAPUS KERANJANGNYA)
+    localStorage.removeItem('jwt_token'); 
     localStorage.removeItem('loggedInCustomerId');
     localStorage.removeItem('loggedInCustomerName');
     
-    const userInfoDiv = document.getElementById('userInfo');
-    if (userInfoDiv) userInfoDiv.classList.add('hidden');
+    // 3. Segarkan tampilan keranjang
+    updateCartBadge();
     
-    // Reset tampilan order history
-    document.getElementById('orderHistoryContainer').innerHTML = '<p class="text-gray-400 text-center">Silakan login terlebih dahulu</p>';
+    // 4. Reset Tampilan UI Navbar
+    const navAuthSection = document.getElementById('navAuthSection');
+    const userInfoDiv = document.getElementById('userInfo');
+    
+    if (navAuthSection) navAuthSection.classList.remove('hidden'); 
+    if (userInfoDiv) {
+        userInfoDiv.classList.remove('flex');
+        userInfoDiv.classList.add('hidden');
+    }
+    
+    // 5. Bersihkan riwayat pesanan di layar
+    const orderContainer = document.getElementById('orderHistoryContainer');
+    if (orderContainer) {
+        orderContainer.innerHTML = '<p class="text-gray-400 text-center">Silakan login terlebih dahulu</p>';
+    }
+
+    // ==========================================
+    // 6. BERSIHKAN BEKAS KETIKAN DI FORM LOGIN & REGISTER
+    // ==========================================
+    const loginEmail = document.getElementById('loginEmail');
+    const loginPassword = document.getElementById('loginPassword');
+    if (loginEmail) loginEmail.value = '';
+    if (loginPassword) loginPassword.value = '';
+
+    // Bersihkan juga form pendaftaran untuk berjaga-jaga
+    const regName = document.getElementById('regName');
+    const regEmail = document.getElementById('regEmail');
+    const regAddress = document.getElementById('regAddress');
+    const regPassword = document.getElementById('regPassword');
+    if (regName) regName.value = '';
+    if (regEmail) regEmail.value = '';
+    if (regAddress) regAddress.value = '';
+    if (regPassword) regPassword.value = '';
+    // ==========================================
+    
     showNotification("Anda telah logout", "info");
-    showLoginModal();
+    const regConfirmPassword = document.getElementById('regConfirmPassword');
+    if (regConfirmPassword) regConfirmPassword.value = '';
 }
 
-async function registerAndLogin(name, email, address) {
+// Catatan: Fungsi registerAndLogin() tetap kamu simpan di bawah sini seperti biasa
+
+// Tambahkan parameter password
+async function registerAndLogin(name, email, address, password) { 
     try {
         const response = await fetch(`${API_BASE_URL}/customers`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, email, address })
+            body: JSON.stringify({ name, email, address, password }) // Kirim password ke backend
         });
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.message || "Gagal mendaftar");
         }
-        const newCustomer = await response.json();
-        showNotification(`Berhasil mendaftar sebagai ${newCustomer.name}`, "success");
-        login(newCustomer.id, newCustomer.name);
+        showNotification(`Berhasil mendaftar! Mengalihkan...`, "success");
+        
+        // Setelah berhasil daftar, otomatis login dengan email dan password tersebut
+        loginUser(email, password); 
     } catch (error) {
         showNotification(error.message, "error");
     }
@@ -254,7 +378,7 @@ function renderProducts(products) {
 async function fetchOrders() {
     if (!currentCustomerId) return;
     try {
-        const response = await fetch(`${API_BASE_URL}/orders`);
+        const response = await fetchWithAuth(`${API_BASE_URL}/orders`);
         if (!response.ok) throw new Error("Gagal mengambil order");
         const allOrders = await response.json();
         const userOrders = allOrders.filter(order => order.customer.id == currentCustomerId);
@@ -366,28 +490,47 @@ async function checkout() {
     }
 }
 
+
 // ==================== INITIALIZATION ====================
 document.addEventListener('DOMContentLoaded', () => {
     fetchProducts();
     
     // Cek apakah sudah login (localStorage)
-    const savedId = localStorage.getItem('loggedInCustomerId');
+    const token = localStorage.getItem('jwt_token');
     const savedName = localStorage.getItem('loggedInCustomerName');
-    if (savedId && savedName) {
-        currentCustomerId = savedId;
+    
+    const navAuthSection = document.getElementById('navAuthSection');
+    const userInfoDiv = document.getElementById('userInfo');
+    const userNameSpan = document.getElementById('loggedInUserName');
+
+    if (token && savedName) {
+        // JIKA SUDAH LOGIN:
         currentCustomerName = savedName;
-        const userInfoDiv = document.getElementById('userInfo');
-        const userNameSpan = document.getElementById('loggedInUserName');
+        if (navAuthSection) navAuthSection.classList.add('hidden');
         if (userInfoDiv && userNameSpan) {
-            userNameSpan.innerText = `Halo, ${savedName}`;
+            userNameSpan.innerText = savedName;
             userInfoDiv.classList.remove('hidden');
+            userInfoDiv.classList.add('flex'); // Tambahkan ini
         }
         fetchOrders();
     } else {
-        showLoginModal();
+        // JIKA BELUM LOGIN:
+        if (navAuthSection) navAuthSection.classList.remove('hidden');
+        if (userInfoDiv) {
+            userInfoDiv.classList.remove('flex'); // Tambahkan ini
+            userInfoDiv.classList.add('hidden');
+        }
     }
     
     updateCartBadge();
+
+    // Listener Tombol Login di Navbar
+    const navLoginBtn = document.getElementById('navLoginBtn');
+    if (navLoginBtn) {
+        navLoginBtn.addEventListener('click', () => {
+            showLoginModal();
+        });
+    }
     
     // Event listeners untuk cart
     const cartIcon = document.getElementById('cartIcon');
@@ -425,15 +568,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const loginBtn = document.getElementById('loginBtn');
     if (loginBtn) {
         loginBtn.addEventListener('click', () => {
-            const select = document.getElementById('customerSelect');
-            const customerId = select.value;
-            if (!customerId) {
-                showNotification("Pilih customer terlebih dahulu", "error");
+            const email = document.getElementById('loginEmail').value.trim();
+            const password = document.getElementById('loginPassword').value.trim();
+            
+            if (!email || !password) {
+                showNotification("Email dan password harus diisi", "error");
                 return;
             }
-            const selectedOption = select.options[select.selectedIndex];
-            const customerName = selectedOption.text.split(' (')[0];
-            login(customerId, customerName);
+            loginUser(email, password); // Panggil fungsi login dengan token
         });
     }
     
@@ -444,11 +586,22 @@ document.addEventListener('DOMContentLoaded', () => {
             const name = document.getElementById('regName').value.trim();
             const email = document.getElementById('regEmail').value.trim();
             const address = document.getElementById('regAddress').value.trim();
-            if (!name || !email || !address) {
+            const password = document.getElementById('regPassword').value.trim();
+            const confirmPassword = document.getElementById('regConfirmPassword').value.trim();
+
+            if (!name || !email || !address || !password || !confirmPassword) {
                 showNotification("Semua field harus diisi", "error");
                 return;
             }
-            registerAndLogin(name, email, address);
+            
+            // Cek apakah password dan konfirmasinya sama
+            if (password !== confirmPassword) {
+                showNotification("Password tidak cocok!", "error");
+                return;
+            }
+            
+            // Panggil fungsi daftar (tambahkan parameter password!)
+            registerAndLogin(name, email, address, password);
         });
     }
     
