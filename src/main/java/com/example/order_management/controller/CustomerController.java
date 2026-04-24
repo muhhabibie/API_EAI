@@ -5,6 +5,8 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+// TAMBAHAN IMPORT UNTUK PASSWORD ENCODER
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,8 +27,13 @@ import jakarta.validation.Valid;
 @CrossOrigin(origins = "*")
 @RequestMapping("/api/customers")
 public class CustomerController {
+    
     @Autowired
     private CustomerService customerService;
+
+    // Panggil alat pengacak password
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     @GetMapping
     public ResponseEntity<List<Customer>> getAllCustomers() {
@@ -42,13 +49,16 @@ public class CustomerController {
 
     @PostMapping
     public ResponseEntity<Customer> createCustomer(@RequestBody @Valid CustomerRequest request) {
-    Customer customer = new Customer();
-    customer.setName(request.getName());
-    customer.setEmail(request.getEmail());
-    customer.setAddress(request.getAddress());
-    
-    Customer saved = customerService.createCustomer(customer);
-    return new ResponseEntity<>(saved, HttpStatus.CREATED);
+        Customer customer = new Customer();
+        customer.setName(request.getName());
+        customer.setEmail(request.getEmail());
+        customer.setAddress(request.getAddress());
+        
+        // TAMBAHAN: Ambil password dari request, enkripsi, lalu masukkan ke entity Customer
+        customer.setPassword(passwordEncoder.encode(request.getPassword()));
+        
+        Customer saved = customerService.createCustomer(customer);
+        return new ResponseEntity<>(saved, HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
