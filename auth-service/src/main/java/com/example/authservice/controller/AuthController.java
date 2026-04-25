@@ -70,6 +70,34 @@ public class AuthController {
                 .body(ApiResponse.error("Email atau password salah"));
     }
 
+    public static class RegisterRequest {
+        public String username;
+        public String name;
+        public String email;
+        public String address;
+        public String password;
+    }
+
+    @PostMapping("/register")
+    public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
+        if (customerRepository.findByEmail(request.email).isPresent()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error("Email sudah terdaftar"));
+        }
+
+        Customer customer = new Customer();
+        customer.setUsername(request.username != null ? request.username : "user");
+        customer.setName(request.name);
+        customer.setEmail(request.email);
+        customer.setAddress(request.address);
+        customer.setPassword(passwordEncoder.encode(request.password));
+
+        customerRepository.save(customer);
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Registrasi berhasil, silakan login", null));
+    }
+
     @GetMapping("/admin/dashboard")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<?> adminDashboard() {

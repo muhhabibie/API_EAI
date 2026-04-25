@@ -56,15 +56,47 @@ public class CustomerController {
     // Registrasi — terbuka tanpa token (diatur di SecurityConfig)
     @PostMapping
     public ResponseEntity<?> createCustomer(@RequestBody @Valid CustomerRequest request) {
+        // 1. Simpan ke customer_db (tanpa password, atau password diabaikan)
         Customer customer = new Customer();
         customer.setName(request.getName());
         customer.setEmail(request.getEmail());
         customer.setAddress(request.getAddress());
-        customer.setPassword(passwordEncoder.encode(request.getPassword()));
+        // Jika entity Customer masih butuh field password untuk non-null, kita set dummy
+        customer.setPassword("SECRET_DI_AUTH_SERVICE"); 
         
         Customer saved = customerService.createCustomer(customer);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Customer berhasil dibuat", saved));
+
+        // 2. Panggil Auth Service untuk sinkronisasi kredensial (Opsi 2)
+        try {
+            org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate();
+            
+            java.util.Map<String, String> authPayload = new java.util.HashMap<>();
+            // Bisa disesuaikan logic jika ingin daftar sbg admin
+            authPayload.put("username", "user"); 
+            authPayload.put("name", request.getName());
+            authPayload.put("email", request.getEmail());
+            authPayload.put("address", request.getAddress());
+            // Kirim password asli agar di-hash oleh Auth Service
+            authPayload.put("password", request.getPassword()); 
+            
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+            org.springframework.http.HttpEntity<java.util.Map<String, String>> entity = new org.springframework.http.HttpEntity<>(authPayload, headers);
+            
+            ResponseEntity<String> response = restTemplate.postForEntity("http://localhost:8081/api/register", entity, String.class);
+            
+            if (response.getStatusCode() == HttpStatus.CREATED) {
+                return ResponseEntity.status(HttpStatus.CREATED)
+                        .body(ApiResponse.success("Customer profil dibuat dan akun berhasil sinkron ke Auth Service", saved));
+            } else {
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .body(ApiResponse.error("Profil dibuat, tapi gagal registrasi ke Auth Service"));
+            }
+        } catch (Exception e) {
+            System.err.println("Gagal panggil Auth Service: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Customer berhasil disimpan, tapi koneksi ke Auth Service gagal: " + e.getMessage()));
+        }
     }
 
     // ADMIN + USER bisa update customer
