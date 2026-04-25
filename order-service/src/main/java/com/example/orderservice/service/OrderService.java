@@ -9,12 +9,17 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.example.orderservice.entity.Order;
 import com.example.orderservice.entity.OrderItem;
+import com.example.orderservice.kafka.OrderProducer;
 import com.example.orderservice.repository.OrderRepository;
+import com.example.orderservice.model.OrderMessage;
 
 @Service
 public class OrderService {
     @Autowired
     private OrderRepository orderRepository;
+
+    @Autowired
+    private OrderProducer orderProducer;
 
     // ========== STATUS CONSTANTS ==========
     public static final String STATUS_PENDING = "PENDING";
@@ -54,7 +59,17 @@ public class OrderService {
         }
 
         order.setTotalAmount(total);
-        return orderRepository.save(order);
+        Order savedOrder = orderRepository.save(order);
+
+        OrderMessage message = new OrderMessage(
+            savedOrder.getId(),
+            savedOrder.getOrderNumber(),
+            savedOrder.getCustomerId(),
+            savedOrder.getStatus(),
+            savedOrder.getTotalAmount()
+        );
+orderProducer.sendOrderCreated(message);
+return savedOrder;
     }
 
     // ========== CONFIRM PAYMENT (User bayar) ==========

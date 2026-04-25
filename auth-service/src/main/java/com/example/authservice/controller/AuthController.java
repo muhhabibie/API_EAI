@@ -70,6 +70,40 @@ public class AuthController {
                 .body(ApiResponse.error("Email atau password salah"));
     }
 
+        @PostMapping("/register")
+    public ResponseEntity<?> register(@RequestBody Map<String, String> request) {
+        String name = request.get("name");
+        String email = request.get("email");
+        String username = request.get("username");
+        String password = request.get("password");
+        String address = request.getOrDefault("address", "");
+
+        if (email == null || password == null || name == null || username == null) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("Field name, email, username, dan password wajib diisi"));
+        }
+
+        if (customerRepository.findByEmail(email).isPresent()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(ApiResponse.error("Email sudah terdaftar"));
+        }
+
+        Customer newCustomer = new Customer();
+        newCustomer.setName(name);
+        newCustomer.setEmail(email);
+        newCustomer.setUsername(username);
+        newCustomer.setPassword(passwordEncoder.encode(password)); // Hash otomatis
+        newCustomer.setAddress(address);
+
+        customerRepository.save(newCustomer);
+
+        Map<String, String> data = new HashMap<>();
+        data.put("email", newCustomer.getEmail());
+        data.put("username", newCustomer.getUsername());
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Registrasi berhasil", data));
+    }
+
     @GetMapping("/admin/dashboard")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<?> adminDashboard() {
