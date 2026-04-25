@@ -2,11 +2,15 @@ package com.example.orderservice.service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.orderservice.config.RabbitMQConfig;
+import com.example.orderservice.dto.OrderEvent;
 import com.example.orderservice.entity.Order;
 import com.example.orderservice.entity.OrderItem;
 import com.example.orderservice.repository.OrderRepository;
@@ -15,6 +19,9 @@ import com.example.orderservice.repository.OrderRepository;
 public class OrderService {
     @Autowired
     private OrderRepository orderRepository;
+
+    @Autowired
+    private RabbitTemplate rabbitTemplate;
 
     // ========== STATUS CONSTANTS ==========
     public static final String STATUS_PENDING = "PENDING";
@@ -47,6 +54,7 @@ public class OrderService {
             OrderItem item = new OrderItem();
             item.setProductId(req.getProductId());
             item.setQuantity(req.getQuantity() != null ? req.getQuantity() : 1);
+            // Default price 0.0 kalau tidak dikirim dari front-end
             item.setPrice(req.getPrice() != null ? req.getPrice() : 0.0);
             item.setSubtotal(item.getPrice() * item.getQuantity());
             order.addItem(item);
@@ -58,7 +66,6 @@ public class OrderService {
     }
 
     // ========== CONFIRM PAYMENT (User bayar) ==========
-    // PENDING → PAID
     @Transactional
     public Order confirmPayment(Long orderId, String courierName) {
         Order order = orderRepository.findById(orderId)
@@ -70,11 +77,31 @@ public class OrderService {
         }
 
         order.setStatus(STATUS_PAID);
-        return orderRepository.save(order);
+        Order savedOrder = orderRepository.save(order);
+
+        // KIRIM PESAN KE RABBITMQ
+        OrderEvent event = new OrderEvent();
+        event.setOrderId(savedOrder.getId());
+        event.setCustomerId(savedOrder.getCustomerId());
+        event.setCourierName(courierName);
+        event.setStatus(STATUS_PAID);
+
+        List<OrderEvent.OrderItemDto> itemDtos = savedOrder.getItems().stream().map(item -> {
+            OrderEvent.OrderItemDto dto = new OrderEvent.OrderItemDto();
+            dto.setProductId(item.getProductId());
+            dto.setQuantity(item.getQuantity());
+            return dto;
+        }).collect(Collectors.toList());
+
+        event.setItems(itemDtos);
+
+        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_NAME, "order.routing.key", event);
+        System.out.println("✅ [OrderService] Pesan OrderEvent terkirim untuk Order ID: " + savedOrder.getId());
+
+        return savedOrder;
     }
 
     // ========== UPDATE STATUS (Admin) ==========
-    // Validasi transisi: PAID → PROCESSING → SHIPPED → DELIVERED → COMPLETED
     @Transactional
     public Order updateStatus(Long orderId, String newStatus) {
         Order order = orderRepository.findById(orderId)
@@ -83,7 +110,6 @@ public class OrderService {
         String currentStatus = order.getStatus();
         newStatus = newStatus.toUpperCase();
 
-        // Validasi transisi status
         boolean validTransition = switch (newStatus) {
             case STATUS_PROCESSING -> STATUS_PAID.equals(currentStatus);
             case STATUS_SHIPPED -> STATUS_PROCESSING.equals(currentStatus);
@@ -93,32 +119,26 @@ public class OrderService {
         };
 
         if (!validTransition) {
-            throw new RuntimeException("Transisi status tidak valid: " + currentStatus + " → " + newStatus
-                    + ". Alur yang benar: PENDING → PAID → PROCESSING → SHIPPED → DELIVERED → COMPLETED");
+            throw new RuntimeException("Transisi status tidak valid: " + currentStatus + " -> " + newStatus);
         }
 
         order.setStatus(newStatus);
         return orderRepository.save(order);
     }
 
-    // ========== CANCEL ORDER ==========
-    // Hanya bisa cancel saat PENDING atau PAID
     @Transactional
     public Order cancelOrder(Long id) {
         Order order = orderRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Order tidak ditemukan dengan id: " + id));
 
         if (!STATUS_PENDING.equals(order.getStatus()) && !STATUS_PAID.equals(order.getStatus())) {
-            throw new RuntimeException("Order tidak bisa dibatalkan. Status saat ini: " + order.getStatus()
-                    + ". Hanya order PENDING atau PAID yang bisa dibatalkan");
+            throw new RuntimeException("Order tidak bisa dibatalkan.");
         }
 
         order.setStatus(STATUS_CANCELLED);
         return orderRepository.save(order);
     }
 
-    // ========== UPDATE FROM SHIPPING ==========
-    // Dipanggil saat shipment status berubah
     @Transactional
     public void updateOrderStatusFromShipping(Long orderId, String shippingStatus) {
         Order order = orderRepository.findById(orderId).orElse(null);
@@ -132,7 +152,6 @@ public class OrderService {
         }
     }
 
-    // ========== QUERIES ==========
     public List<Order> getOrdersByCustomer(Long customerId) {
         return orderRepository.findByCustomerId(customerId);
     }
@@ -143,20 +162,41 @@ public class OrderService {
 
     public Order getOrderById(Long id) {
         return orderRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Order tidak ditemukan dengan id: " + id));
+                .orElseThrow(() -> new RuntimeException("Order tidak ditemukan"));
     }
 
-    // ========== DTO ==========
+    // ========== DTO INNER CLASS (DI-FIX) ==========
     public static class ItemRequest {
         private Long productId;
         private Integer quantity;
         private Double price;
 
-        public Long getProductId() { return productId; }
-        public void setProductId(Long productId) { this.productId = productId; }
-        public Integer getQuantity() { return quantity; }
-        public void setQuantity(Integer quantity) { this.quantity = quantity; }
-        public Double getPrice() { return price; }
-        public void setPrice(Double price) { this.price = price; }
+        // Constructor kosong wajib untuk Jackson
+        public ItemRequest() {
+        }
+
+        public Long getProductId() {
+            return productId;
+        }
+
+        public void setProductId(Long productId) {
+            this.productId = productId;
+        }
+
+        public Integer getQuantity() {
+            return quantity;
+        }
+
+        public void setQuantity(Integer quantity) {
+            this.quantity = quantity;
+        }
+
+        public Double getPrice() {
+            return price;
+        }
+
+        public void setPrice(Double price) {
+            this.price = price;
+        }
     }
 }

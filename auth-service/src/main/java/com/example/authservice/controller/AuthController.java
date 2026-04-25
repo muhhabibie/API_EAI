@@ -22,6 +22,7 @@ import com.example.authservice.dto.ApiResponse;
 import com.example.authservice.entity.Customer;
 import com.example.authservice.repository.CustomerRepository;
 import com.example.authservice.security.JwtUtil;
+import com.example.authservice.entity.Customer;
 
 @RestController
 @RequestMapping("/api")
@@ -50,10 +51,7 @@ public class AuthController {
             Customer customer = customerOpt.get();
 
             if (passwordEncoder.matches(loginRequest.password, customer.getPassword())) {
-                String role = "admin".equalsIgnoreCase(customer.getUsername())
-                        ? "ROLE_ADMIN"
-                        : "ROLE_USER";
-
+                String role = "admin".equalsIgnoreCase(customer.getUsername()) ? "ROLE_ADMIN" : "ROLE_USER";
                 String token = jwtUtil.generateToken(customer.getEmail(), role);
 
                 Map<String, String> loginData = new HashMap<>();
@@ -65,7 +63,6 @@ public class AuthController {
                 return ResponseEntity.ok(ApiResponse.success("Login Berhasil!", loginData));
             }
         }
-
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(ApiResponse.error("Email atau password salah"));
     }
@@ -93,5 +90,24 @@ public class AuthController {
     @GetMapping("/public/health")
     public ResponseEntity<?> health() {
         return ResponseEntity.ok(ApiResponse.success("Auth Service is Running", null));
+    }
+
+    // ========== FITUR REGISTER (TAMBAHAN) ==========
+    @PostMapping("/register")
+    public ResponseEntity<?> register(@RequestBody Customer customer) {
+        // Cek apakah email sudah terdaftar
+        if (customerRepository.findByEmail(customer.getEmail()).isPresent()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(com.example.authservice.dto.ApiResponse.error("Email sudah terdaftar!"));
+        }
+
+        // Encode password biar aman di DB
+        customer.setPassword(passwordEncoder.encode(customer.getPassword()));
+
+        // Simpan ke database
+        Customer savedCustomer = customerRepository.save(customer);
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(com.example.authservice.dto.ApiResponse.success("Registrasi Berhasil!", savedCustomer));
     }
 }
