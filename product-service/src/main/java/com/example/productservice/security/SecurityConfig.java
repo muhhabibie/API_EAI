@@ -31,9 +31,21 @@ public class SecurityConfig {
             .sessionManagement(session ->
                     session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                    // GET produk dan kategori bisa diakses publik (opsional: bisa diubah ke authenticated)
+                    // 1. IZINKAN SEMUA JALUR SWAGGER/OPENAPI
+                    .requestMatchers(
+                            "/v3/api-docs",
+                            "/v3/api-docs/**",
+                            "/swagger-ui/**",
+                            "/swagger-ui.html",
+                            "/swagger-resources/**",
+                            "/webjars/**",
+                            "/error"
+                    ).permitAll()
+                    
+                    // 2. GET produk dan kategori bisa diakses publik
                     .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/products/**", "/api/categories/**").permitAll()
-                    // Operasi write wajib JWT
+                    
+                    // 3. Endpoint lainnya wajib pakai token JWT
                     .anyRequest().authenticated()
             )
             .addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
