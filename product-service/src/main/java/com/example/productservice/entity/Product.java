@@ -13,7 +13,7 @@ import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "products")
-@JsonPropertyOrder({"id", "name", "price", "stock", "category"})
+@JsonPropertyOrder({"id", "name", "description", "image_url", "price", "stock", "category"})
 public class Product {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -21,6 +21,11 @@ public class Product {
 
     @Column(nullable = false)
     private String name;
+
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
+    private String imageUrl;
 
     @Column(nullable = false)
     private Double price;
@@ -34,8 +39,10 @@ public class Product {
 
     public Product() {}
 
-    public Product(String name, Double price, Integer stock) {
+    public Product(String name, String description, String imageUrl, Double price, Integer stock) {
         this.name = name;
+        this.description = description;
+        this.imageUrl = imageUrl;
         this.price = price;
         this.stock = stock;
     }
@@ -44,6 +51,10 @@ public class Product {
     public void setId(Long id) { this.id = id; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
+    public String getImageUrl() { return imageUrl; }
+    public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
     public Double getPrice() { return price; }
     public void setPrice(Double price) { this.price = price; }
     public Integer getStock() { return stock; }

@@ -44,6 +44,13 @@ public class JwtGatewayFilter extends OncePerRequestFilter {
             return;
         }
 
+        // 4. Katalog Produk & Kategori (GET) juga publik
+        if ((path.startsWith("/api/products") || path.startsWith("/api/categories")) 
+            && request.getMethod().equalsIgnoreCase("GET")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         // 4. Periksa header Authorization
         final String authorizationHeader = request.getHeader("Authorization");
 

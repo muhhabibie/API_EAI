@@ -34,7 +34,7 @@ public class InventoryService {
 
             org.springframework.http.ResponseEntity<String> response = restTemplate.exchange(
                 "http://localhost:8082/api/products/" + productId + "/adjustment?amount=-" + quantity,
-                org.springframework.http.HttpMethod.PATCH,
+                org.springframework.http.HttpMethod.POST,
                 entity,
                 String.class
             );
@@ -73,7 +73,7 @@ public class InventoryService {
 
                     restTemplate.exchange(
                         "http://localhost:8082/api/products/" + reservation.getProductId() + "/adjustment?amount=" + reservation.getQuantity(),
-                        org.springframework.http.HttpMethod.PATCH,
+                        org.springframework.http.HttpMethod.POST,
                         entity,
                         String.class
                     );
@@ -121,7 +121,7 @@ public class InventoryService {
 
                 restTemplate.exchange(
                     "http://localhost:8082/api/products/" + reservation.getProductId() + "/adjustment?amount=" + reservation.getQuantity(),
-                    org.springframework.http.HttpMethod.PATCH,
+                    org.springframework.http.HttpMethod.POST,
                     entity,
                     String.class
                 );

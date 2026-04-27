@@ -29,9 +29,12 @@ public class CustomerService {
     public Customer updateCustomer(Long id, Customer request) {
         return customerRepository.findById(id)
             .map(customer -> {
-                customer.setName(request.getName());
-                customer.setEmail(request.getEmail());
-                customer.setAddress(request.getAddress());
+                if (request.getName() != null) customer.setName(request.getName());
+                if (request.getEmail() != null) customer.setEmail(request.getEmail());
+                if (request.getAddress() != null) customer.setAddress(request.getAddress());
+                if (request.getUsername() != null) customer.setUsername(request.getUsername());
+                if (request.getPhone() != null) customer.setPhone(request.getPhone());
+                if (request.getBalance() != null) customer.setBalance(request.getBalance());
                 return customerRepository.save(customer);
             }).orElse(null);
     }

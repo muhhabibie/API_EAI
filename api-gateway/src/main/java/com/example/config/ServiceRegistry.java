@@ -13,6 +13,7 @@ public class ServiceRegistry {
     public static final String ORDER_SERVICE_URL = BASE_URL + ":8084";
     public static final String INVENTORY_SERVICE_URL = BASE_URL + ":8085";
     public static final String SHIPPING_SERVICE_URL = BASE_URL + ":8086";
+    public static final String PAYMENT_SERVICE_URL = BASE_URL + ":8087";
     
     /**
      * Route path to service URL mapping
@@ -30,6 +31,8 @@ public class ServiceRegistry {
             return INVENTORY_SERVICE_URL;
         } else if (path.startsWith("/api/shipments")) {
             return SHIPPING_SERVICE_URL;
+        } else if (path.startsWith("/api/payments")) {
+            return PAYMENT_SERVICE_URL;
         }
         return null;
     }

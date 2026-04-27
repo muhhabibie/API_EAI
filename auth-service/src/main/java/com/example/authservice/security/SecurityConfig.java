@@ -42,8 +42,8 @@ public class SecurityConfig {
                                 "/webjars/**",
                                 "/error")
                         .permitAll()
-                        // endpoint login dan health bebas token
-                        .requestMatchers("/api/login", "/api/public/**").permitAll()
+                        // endpoint login, register, dan health bebas token
+                        .requestMatchers("/api/login", "/api/register", "/api/public/**").permitAll()
                         // semua endpoint lain butuh autentikasi
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);

@@ -28,14 +28,50 @@ public class ShippingService {
 
     // ========== CREATE SHIPMENT ==========
     @Transactional
-    public Shipment createShipment(Long orderId, CourierType courier) {
+    public Shipment createShipment(Long orderId, CourierType courier, String receiverName, String deliveryAddress, Double shippingFee) {
         if (shipmentRepository.findByOrderId(orderId).isPresent()) {
             throw new RuntimeException("Shipment sudah ada untuk Order ID: " + orderId);
+        }
+
+        // Jika data penerima atau alamat kosong, ambil otomatis dari profil Customer
+        if (receiverName == null || receiverName.trim().isEmpty() || deliveryAddress == null || deliveryAddress.trim().isEmpty()) {
+            try {
+                org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate();
+                org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+                headers.set("Authorization", "Bearer " + jwtUtil.generateSystemToken());
+                org.springframework.http.HttpEntity<String> entity = new org.springframework.http.HttpEntity<>(headers);
+
+                // 1. Dapatkan customerId dari Order Service
+                String orderUrl = "http://localhost:8084/api/orders/" + orderId;
+                org.springframework.http.ResponseEntity<java.util.Map> orderResponse = restTemplate.exchange(orderUrl, org.springframework.http.HttpMethod.GET, entity, java.util.Map.class);
+                java.util.Map orderData = (java.util.Map) orderResponse.getBody().get("data");
+                Long customerId = Long.valueOf(orderData.get("customerId").toString());
+
+                // 2. Dapatkan Name & Address dari Customer Service
+                String customerUrl = "http://localhost:8083/api/customers/" + customerId;
+                org.springframework.http.ResponseEntity<java.util.Map> customerResponse = restTemplate.exchange(customerUrl, org.springframework.http.HttpMethod.GET, entity, java.util.Map.class);
+                java.util.Map customerData = (java.util.Map) customerResponse.getBody().get("data");
+
+                if (receiverName == null || receiverName.trim().isEmpty()) {
+                    receiverName = customerData.get("name").toString();
+                }
+                if (deliveryAddress == null || deliveryAddress.trim().isEmpty()) {
+                    deliveryAddress = customerData.get("address").toString();
+                }
+            } catch (Exception e) {
+                System.err.println("Gagal mengambil data profil otomatis: " + e.getMessage());
+                if (receiverName == null || deliveryAddress == null) {
+                    throw new RuntimeException("Gagal mengambil data profil otomatis dan input manual kosong.");
+                }
+            }
         }
 
         Shipment shipment = new Shipment();
         shipment.setOrderId(orderId);
         shipment.setCourierName(courier); 
+        shipment.setReceiverName(receiverName);
+        shipment.setDeliveryAddress(deliveryAddress);
+        shipment.setShippingFee(shippingFee);
         shipment.setStatus(STATUS_PENDING);
         shipment.setTrackingNumber("IFS-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase());
         

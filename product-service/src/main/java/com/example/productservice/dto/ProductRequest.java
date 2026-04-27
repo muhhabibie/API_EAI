@@ -1,35 +1,32 @@
 package com.example.productservice.dto;
 
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 public class ProductRequest {
-    @NotBlank(message = "Nama produk wajib diisi")
-    @Size(min = 3, max = 100, message = "Nama produk minimal 3 dan maksimal 100 karakter")
-    @Pattern(regexp = "^[a-zA-Z0-9 ]*$", message = "Nama produk hanya boleh berisi huruf, angka, dan spasi")
+    @Schema(example = "Laptop Gaming ASUS", description = "Nama produk")
     private String name;
-
-    @NotNull(message = "Harga wajib diisi")
-    @Min(value = 1, message = "Harga minimal 1")
-    private Double price;
-
-    @NotNull(message = "Stok wajib diisi")
-    @Min(value = 0, message = "Stok tidak boleh negatif")
-    private Integer stock;
-
-    @NotNull(message = "Kategori ID wajib diisi")
+    
+    @Schema(example = "1", description = "ID Kategori produk (lihat daftar kategori)")
     private Long categoryId;
+    
+    @Schema(example = "15000000.0", description = "Harga produk")
+    private Double price;
+    
+    @Schema(example = "10", description = "Stok awal produk")
+    private Integer stock;
+    
+    @Schema(example = "Laptop spesifikasi tinggi untuk gaming dan desain", description = "Deskripsi produk")
+    private String description;
 
+    // Getters and Setters
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
+    public Long getCategoryId() { return categoryId; }
+    public void setCategoryId(Long categoryId) { this.categoryId = categoryId; }
     public Double getPrice() { return price; }
     public void setPrice(Double price) { this.price = price; }
     public Integer getStock() { return stock; }
     public void setStock(Integer stock) { this.stock = stock; }
-
-    public Long getCategoryId() { return categoryId; }
-    public void setCategoryId(Long categoryId) { this.categoryId = categoryId; }
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
 }

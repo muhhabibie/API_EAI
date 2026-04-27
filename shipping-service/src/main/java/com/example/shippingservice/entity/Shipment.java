@@ -34,6 +34,10 @@ public class Shipment {
     @Column(nullable = false)
     private String status;
 
+    private String receiverName;
+    private String deliveryAddress;
+    private Double shippingFee;
+
     private LocalDateTime shippedAt;
     private LocalDateTime deliveredAt;
 
@@ -53,6 +57,13 @@ public class Shipment {
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+
+    public String getReceiverName() { return receiverName; }
+    public void setReceiverName(String receiverName) { this.receiverName = receiverName; }
+    public String getDeliveryAddress() { return deliveryAddress; }
+    public void setDeliveryAddress(String deliveryAddress) { this.deliveryAddress = deliveryAddress; }
+    public Double getShippingFee() { return shippingFee; }
+    public void setShippingFee(Double shippingFee) { this.shippingFee = shippingFee; }
 
     public LocalDateTime getShippedAt() { return shippedAt; }
     public void setShippedAt(LocalDateTime shippedAt) { this.shippedAt = shippedAt; }

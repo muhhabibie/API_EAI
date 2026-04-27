@@ -7,15 +7,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.example.customerservice.dto.ApiResponse;
 import com.example.customerservice.dto.CustomerRequest;
@@ -27,6 +21,7 @@ import jakarta.validation.Valid;
 @RestController
 @CrossOrigin(origins = "*")
 @RequestMapping("/api/customers")
+@Tag(name = "Customer Management", description = "Endpoint untuk mengelola data dan saldo pelanggan")
 public class CustomerController {
     
     @Autowired
@@ -35,7 +30,7 @@ public class CustomerController {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
-    // Hanya ADMIN bisa lihat semua customer
+    @Operation(summary = "Ambil Semua Customer", description = "Melihat daftar seluruh pelanggan. Khusus Admin.")
     @GetMapping
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<?> getAllCustomers() {
@@ -43,7 +38,7 @@ public class CustomerController {
         return ResponseEntity.ok(ApiResponse.success(customers));
     }
 
-    // ADMIN + USER bisa lihat detail customer
+    @Operation(summary = "Ambil Customer by ID", description = "Melihat informasi detail profil pelanggan tertentu.")
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_USER')")
     public ResponseEntity<?> getCustomerById(@PathVariable Long id) {
@@ -53,56 +48,45 @@ public class CustomerController {
                         .body(ApiResponse.error("Customer tidak ditemukan")));
     }
 
-    // Registrasi — terbuka tanpa token (diatur di SecurityConfig)
+    @Operation(summary = "Daftar Customer Baru", description = "Mendaftarkan profil pelanggan baru dan otomatis tersinkronisasi ke Auth Service.")
     @PostMapping
     public ResponseEntity<?> createCustomer(@RequestBody @Valid CustomerRequest request) {
-        // 1. Simpan Profil ke Database Customer (customer_db)
         Customer customer = new Customer();
         customer.setUsername(request.getUsername());
         customer.setName(request.getName());
         customer.setEmail(request.getEmail());
         customer.setAddress(request.getAddress());
-        // Simpan versi aslinya ke database Customer jika diinginkan,
-        // tapi sebaiknya password di-hash. Kita akan tetap biarkan hash di sini,
-        // TAPI yang terpenting adalah mendaftarkan ke auth-service!
         customer.setPassword(passwordEncoder.encode(request.getPassword()));
+        customer.setBalance(request.getBalance() != null ? request.getBalance() : 0.0);
+        customer.setPhone(request.getPhone());
         
         Customer saved = customerService.createCustomer(customer);
 
-        // 2. Sinkronisasi Kredensial ke Auth Service (Opsi 2)
         try {
             org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate();
-            
-            java.util.Map<String, String> authPayload = new java.util.HashMap<>();
-            // Menggunakan username yang diinputkan pengguna sendiri
+            java.util.Map<String, Object> authPayload = new java.util.HashMap<>();
             authPayload.put("username", request.getUsername()); 
             authPayload.put("name", request.getName());
             authPayload.put("email", request.getEmail());
             authPayload.put("address", request.getAddress());
-            authPayload.put("password", request.getPassword()); // Kirim password mentah ke Auth Service untuk di-hash di sana
+            authPayload.put("password", request.getPassword());
+            authPayload.put("role", "ROLE_USER"); 
+            authPayload.put("adminKey", "INTERNAL_SYSTEM_KEY_99"); // Kunci rahasia untuk sistem
             
-            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
-            headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
-            org.springframework.http.HttpEntity<java.util.Map<String, String>> entity = new org.springframework.http.HttpEntity<>(authPayload, headers);
+            restTemplate.postForEntity("http://localhost:8081/api/register", authPayload, String.class);
             
-            // Tembak API auth-service
-            ResponseEntity<String> response = restTemplate.postForEntity("http://localhost:8081/api/register", entity, String.class);
-            
-            if (response.getStatusCode() == HttpStatus.CREATED) {
-                return ResponseEntity.status(HttpStatus.CREATED)
-                        .body(ApiResponse.success("Registrasi sukses! Profil dibuat dan terdaftar di Auth Service", saved));
-            } else {
-                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                        .body(ApiResponse.error("Profil dibuat, tapi gagal sinkronisasi ke Auth Service"));
-            }
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .body(ApiResponse.success("Registrasi sukses!", saved));
+        } catch (org.springframework.web.client.HttpStatusCodeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error("Gagal sinkronisasi ke Auth: " + e.getResponseBodyAsString()));
         } catch (Exception e) {
-            System.err.println("Gagal panggil Auth Service: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("Profil berhasil disimpan, tapi gagal tersambung ke Auth Service: " + e.getMessage()));
+                    .body(ApiResponse.error("Gagal terhubung ke Auth Service: " + e.getMessage()));
         }
     }
 
-    // ADMIN + USER bisa update customer
+    @Operation(summary = "Update Data Customer", description = "Memperbarui informasi profil pelanggan.")
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_USER')")
     public ResponseEntity<?> updateCustomer(@PathVariable Long id, @RequestBody Customer customer) {
@@ -114,7 +98,7 @@ public class CustomerController {
                 .body(ApiResponse.error("Customer tidak ditemukan"));
     }
 
-    // Hanya ADMIN bisa hapus customer
+    @Operation(summary = "Hapus Customer", description = "Menghapus data pelanggan secara permanen. Khusus Admin.")
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<?> deleteCustomer(@PathVariable Long id) {
@@ -123,5 +107,22 @@ public class CustomerController {
         }
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ApiResponse.error("Customer tidak ditemukan"));
+    }
+
+    @Operation(summary = "Potong Saldo Customer", description = "Mengurangi jumlah saldo pelanggan untuk transaksi pembayaran.")
+    @PutMapping("/{id}/deduct-balance")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_USER')")
+    public ResponseEntity<?> deductBalance(@PathVariable Long id, @RequestParam Double amount) {
+        Customer customer = customerService.getCustomerById(id)
+            .orElseThrow(() -> new RuntimeException("Customer tidak ditemukan"));
+        
+        if (customer.getBalance() == null || customer.getBalance() < amount) {
+            throw new RuntimeException("Saldo tidak cukup untuk transaksi ini");
+        }
+        
+        customer.setBalance(customer.getBalance() - amount);
+        customerService.updateCustomer(id, customer);
+        
+        return ResponseEntity.ok(ApiResponse.success("Saldo berhasil dipotong", customer.getBalance()));
     }
 }

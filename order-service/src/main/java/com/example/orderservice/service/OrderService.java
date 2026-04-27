@@ -12,6 +12,7 @@ import com.example.orderservice.entity.OrderItem;
 import com.example.orderservice.kafka.OrderProducer;
 import com.example.orderservice.repository.OrderRepository;
 import com.example.orderservice.model.OrderMessage;
+import com.example.orderservice.dto.OrderRequestDTO;
 
 @Service
 public class OrderService {
@@ -24,7 +25,6 @@ public class OrderService {
     @Autowired
     private com.example.orderservice.security.JwtUtil jwtUtil;
 
-    // ========== STATUS CONSTANTS ==========
     public static final String STATUS_PENDING = "PENDING";
     public static final String STATUS_PAID = "PAID";
     public static final String STATUS_PROCESSING = "PROCESSING";
@@ -33,9 +33,8 @@ public class OrderService {
     public static final String STATUS_COMPLETED = "COMPLETED";
     public static final String STATUS_CANCELLED = "CANCELLED";
 
-    // ========== CREATE ORDER ==========
     @Transactional
-    public Order createOrder(Long customerId, List<ItemRequest> itemRequests) {
+    public Order createOrder(Long customerId, List<OrderRequestDTO.OrderItemRequest> itemRequests) {
         if (customerId == null) {
             throw new RuntimeException("Customer ID tidak boleh kosong");
         }
@@ -50,12 +49,9 @@ public class OrderService {
         order.setCreatedAt(LocalDateTime.now());
 
         double total = 0.0;
-
-        // Siapkan RestTemplate untuk memanggil Product Service
         org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate();
         org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
         
-        // Ambil Token JWT dari request saat ini untuk diteruskan ke Product Service
         jakarta.servlet.http.HttpServletRequest currentRequest = 
             ((org.springframework.web.context.request.ServletRequestAttributes) org.springframework.web.context.request.RequestContextHolder.getRequestAttributes()).getRequest();
         String token = currentRequest.getHeader("Authorization");
@@ -64,8 +60,7 @@ public class OrderService {
         }
         org.springframework.http.HttpEntity<String> entity = new org.springframework.http.HttpEntity<>(headers);
 
-        for (ItemRequest req : itemRequests) {
-            // Ambil harga asli dari Product Service
+        for (OrderRequestDTO.OrderItemRequest req : itemRequests) {
             double realPrice = 0.0;
             try {
                 org.springframework.http.ResponseEntity<java.util.Map> response = restTemplate.exchange(
@@ -82,13 +77,13 @@ public class OrderService {
                     throw new RuntimeException("Gagal mengambil data produk ID: " + req.getProductId());
                 }
             } catch (Exception e) {
-                throw new RuntimeException("Product Service error atau Produk ID " + req.getProductId() + " tidak ditemukan. " + e.getMessage());
+                throw new RuntimeException("Product Service error atau Produk ID " + req.getProductId() + " tidak ditemukan.");
             }
 
             OrderItem item = new OrderItem();
             item.setProductId(req.getProductId());
             item.setQuantity(req.getQuantity() != null ? req.getQuantity() : 1);
-            item.setPrice(realPrice); // Gunakan harga asli! Jangan gunakan req.getPrice()
+            item.setPrice(realPrice);
             item.setSubtotal(item.getPrice() * item.getQuantity());
             order.addItem(item);
             total += item.getSubtotal();
@@ -114,22 +109,48 @@ public class OrderService {
         return savedOrder;
     }
 
-    // ========== CONFIRM PAYMENT (User bayar) ==========
-    // PENDING → PAID
     @Transactional
     public Order confirmPayment(Long orderId, String courierName) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order ID " + orderId + " tidak ditemukan"));
 
         if (!STATUS_PENDING.equals(order.getStatus())) {
-            throw new RuntimeException("Pembayaran gagal: Order berstatus " + order.getStatus()
-                    + ". Hanya order PENDING yang bisa dibayar");
+            throw new RuntimeException("Hanya order PENDING yang bisa dibayar");
         }
 
         order.setStatus(STATUS_PAID);
         Order savedOrder = orderRepository.save(order);
 
-        // --- MENGHUBUNGI SHIPPING SERVICE ---
+        String receiverName = "Customer-" + order.getCustomerId();
+        String deliveryAddress = "Alamat tidak tersedia";
+        Double shippingFee = 15000.0;
+
+        try {
+            org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate();
+            org.springframework.http.HttpHeaders authHeaders = new org.springframework.http.HttpHeaders();
+            authHeaders.set("Authorization", "Bearer " + jwtUtil.generateSystemToken());
+            org.springframework.http.HttpEntity<String> authEntity = new org.springframework.http.HttpEntity<>(authHeaders);
+
+            org.springframework.http.ResponseEntity<java.util.Map> customerResponse = restTemplate.exchange(
+                "http://localhost:8083/api/customers/" + order.getCustomerId(),
+                org.springframework.http.HttpMethod.GET,
+                authEntity,
+                java.util.Map.class
+            );
+
+            if (customerResponse.getStatusCode().is2xxSuccessful() && customerResponse.getBody() != null) {
+                java.util.Map<String, Object> body = (java.util.Map<String, Object>) customerResponse.getBody().get("data");
+                if (body != null) {
+                    receiverName = body.get("name").toString();
+                    deliveryAddress = body.get("address").toString();
+                }
+            }
+        } catch (Exception e) {}
+
+        if (courierName.toUpperCase().contains("YES") || courierName.toUpperCase().contains("EXPRESS")) {
+            shippingFee = 25000.0;
+        }
+
         try {
             org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate();
             org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
@@ -139,82 +160,72 @@ public class OrderService {
             java.util.Map<String, Object> payload = new java.util.HashMap<>();
             payload.put("orderId", orderId);
             payload.put("courierName", courierName);
+            payload.put("receiverName", receiverName);
+            payload.put("deliveryAddress", deliveryAddress);
+            payload.put("shippingFee", shippingFee);
 
             org.springframework.http.HttpEntity<java.util.Map<String, Object>> entity = new org.springframework.http.HttpEntity<>(payload, headers);
-
-            restTemplate.postForEntity(
-                "http://localhost:8086/api/shipments",
-                entity,
-                String.class
-            );
-        } catch (Exception e) {
-            System.err.println("PERINGATAN: Gagal membuat Shipment di Shipping Service untuk Order ID " + orderId + ". Error: " + e.getMessage());
-            // Dalam sistem riil, ini harus masuk DLQ atau di-retry otomatis.
-        }
+            restTemplate.postForEntity("http://localhost:8086/api/shipments", entity, String.class);
+        } catch (Exception e) {}
 
         return savedOrder;
     }
 
-    // ========== UPDATE STATUS (Admin) ==========
-    // Validasi transisi: PAID → PROCESSING → SHIPPED → DELIVERED → COMPLETED
     @Transactional
     public Order updateStatus(Long orderId, String newStatus) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order ID " + orderId + " tidak ditemukan"));
-
-        String currentStatus = order.getStatus();
-        newStatus = newStatus.toUpperCase();
-
-        // Validasi transisi status
-        boolean validTransition = switch (newStatus) {
-            case STATUS_PROCESSING -> STATUS_PAID.equals(currentStatus);
-            case STATUS_SHIPPED -> STATUS_PROCESSING.equals(currentStatus);
-            case STATUS_DELIVERED -> STATUS_SHIPPED.equals(currentStatus);
-            case STATUS_COMPLETED -> STATUS_DELIVERED.equals(currentStatus);
-            default -> false;
-        };
-
-        if (!validTransition) {
-            throw new RuntimeException("Transisi status tidak valid: " + currentStatus + " → " + newStatus
-                    + ". Alur yang benar: PENDING → PAID → PROCESSING → SHIPPED → DELIVERED → COMPLETED");
-        }
-
-        order.setStatus(newStatus);
+        order.setStatus(newStatus.toUpperCase());
         return orderRepository.save(order);
     }
 
-    // ========== CANCEL ORDER ==========
-    // Hanya bisa cancel saat PENDING atau PAID
     @Transactional
     public Order cancelOrder(Long id) {
         Order order = orderRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Order tidak ditemukan dengan id: " + id));
+                .orElseThrow(() -> new RuntimeException("Order tidak ditemukan"));
 
-        if (!STATUS_PENDING.equals(order.getStatus()) && !STATUS_PAID.equals(order.getStatus())) {
-            throw new RuntimeException("Order tidak bisa dibatalkan. Status saat ini: " + order.getStatus()
-                    + ". Hanya order PENDING atau PAID yang bisa dibatalkan");
+        // Aturan: Tidak bisa cancel jika sudah dikirim atau selesai
+        if (STATUS_SHIPPED.equals(order.getStatus()) || 
+            STATUS_DELIVERED.equals(order.getStatus()) || 
+            STATUS_COMPLETED.equals(order.getStatus())) {
+            throw new RuntimeException("Pesanan tidak bisa dibatalkan karena sudah dalam proses pengiriman atau sudah selesai.");
         }
 
         order.setStatus(STATUS_CANCELLED);
-        return orderRepository.save(order);
+        Order savedOrder = orderRepository.save(order);
+
+        // Beritahu Inventory Service lewat Kafka untuk mengembalikan stok
+        java.util.List<OrderMessage.OrderItemMessage> messageItems = new java.util.ArrayList<>();
+        for (OrderItem item : savedOrder.getItems()) {
+            messageItems.add(new OrderMessage.OrderItemMessage(item.getProductId(), item.getQuantity()));
+        }
+
+        OrderMessage message = new OrderMessage(
+            savedOrder.getId(),
+            savedOrder.getOrderNumber(),
+            savedOrder.getCustomerId(),
+            savedOrder.getStatus(),
+            savedOrder.getTotalAmount(),
+            messageItems
+        );
+        orderProducer.sendOrderCancelled(message);
+
+        return savedOrder;
     }
 
-    // ========== UPDATE FROM SHIPPING ==========
-    // Dipanggil saat shipment status berubah
     @Transactional
     public void updateOrderStatusFromShipping(Long orderId, String shippingStatus) {
         Order order = orderRepository.findById(orderId).orElse(null);
         if (order != null) {
-            if ("PICKED_UP".equalsIgnoreCase(shippingStatus) || "IN_TRANSIT".equalsIgnoreCase(shippingStatus)) {
-                order.setStatus(STATUS_SHIPPED);
-            } else if ("DELIVERED".equalsIgnoreCase(shippingStatus)) {
+            if ("DELIVERED".equalsIgnoreCase(shippingStatus)) {
                 order.setStatus(STATUS_COMPLETED);
+            } else {
+                order.setStatus(STATUS_SHIPPED);
             }
             orderRepository.save(order);
         }
     }
 
-    // ========== QUERIES ==========
     public List<Order> getOrdersByCustomer(Long customerId) {
         return orderRepository.findByCustomerId(customerId);
     }
@@ -224,21 +235,6 @@ public class OrderService {
     }
 
     public Order getOrderById(Long id) {
-        return orderRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Order tidak ditemukan dengan id: " + id));
-    }
-
-    // ========== DTO ==========
-    public static class ItemRequest {
-        private Long productId;
-        private Integer quantity;
-        private Double price;
-
-        public Long getProductId() { return productId; }
-        public void setProductId(Long productId) { this.productId = productId; }
-        public Integer getQuantity() { return quantity; }
-        public void setQuantity(Integer quantity) { this.quantity = quantity; }
-        public Double getPrice() { return price; }
-        public void setPrice(Double price) { this.price = price; }
+        return orderRepository.findById(id).orElseThrow(() -> new RuntimeException("Order tidak ditemukan"));
     }
 }

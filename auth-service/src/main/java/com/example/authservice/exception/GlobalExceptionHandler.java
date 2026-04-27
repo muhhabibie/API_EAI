@@ -12,7 +12,16 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<?> handleRuntimeException(RuntimeException ex) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.error(ex.getMessage()));
+        String msg = ex.getMessage();
+        HttpStatus status = HttpStatus.BAD_REQUEST;
+
+        if (msg != null && (msg.toLowerCase().contains("tidak ditemukan") || msg.toLowerCase().contains("not found"))) {
+            status = HttpStatus.NOT_FOUND;
+        } else if (msg != null && msg.toLowerCase().contains("already exists")) {
+            status = HttpStatus.CONFLICT;
+        }
+
+        return ResponseEntity.status(status)
+                .body(ApiResponse.error(msg));
     }
 }

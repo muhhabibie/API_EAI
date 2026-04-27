@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.example.orderservice.dto.ApiResponse;
 import com.example.orderservice.entity.Order;
@@ -25,11 +27,13 @@ import com.example.orderservice.dto.OrderRequestDTO;
 @RestController
 @CrossOrigin(origins = "*")
 @RequestMapping("/api/orders")
+@Tag(name = "Order Management", description = "Endpoint untuk mengelola pemesanan barang")
 public class OrderController {
     @Autowired
     private OrderService orderService;
 
     // ADMIN + USER bisa buat order
+    @Operation(summary = "Buat Order Baru", description = "Membuat pesanan baru dengan daftar produk dan jumlah tertentu.")
     @PostMapping
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_USER')")
     public ResponseEntity<?> createOrder(@RequestBody OrderRequestDTO requestDTO) {
@@ -39,6 +43,7 @@ public class OrderController {
     }
 
     // ADMIN bisa lihat semua order, USER juga bisa (filter by customerId)
+    @Operation(summary = "Ambil Semua Order", description = "Melihat riwayat pesanan (bisa difilter berdasarkan customerId).")
     @GetMapping
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_USER')")
     public ResponseEntity<?> getAllOrders(@RequestParam(required = false) Long customerId) {
@@ -52,9 +57,12 @@ public class OrderController {
     }
 
     // Hanya ADMIN bisa update status order
+    @Operation(summary = "Update Status Order", description = "Mengubah status pesanan secara manual (PENDING, PAID, dll). Khusus Admin.")
     @PutMapping("/{id}/status")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
-    public ResponseEntity<?> updateStatus(@PathVariable Long id, @RequestParam String status) {
+    public ResponseEntity<?> updateStatus(@PathVariable Long id, 
+            @io.swagger.v3.oas.annotations.Parameter(description = "Status: PENDING, PAID, PROCESSING, SHIPPED, DELIVERED, COMPLETED, CANCELLED")
+            @RequestParam String status) {
         Order updated = orderService.updateStatus(id, status);
         if (updated == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -64,6 +72,7 @@ public class OrderController {
     }
 
     // ADMIN + USER bisa lihat detail order
+    @Operation(summary = "Ambil Detail Order", description = "Melihat informasi lengkap satu pesanan termasuk item di dalamnya.")
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_USER')")
     public ResponseEntity<?> getOrderById(@PathVariable Long id) {
@@ -72,6 +81,7 @@ public class OrderController {
     }
 
     // ADMIN + USER bisa cancel order
+    @Operation(summary = "Batalkan Order", description = "Membatalkan pesanan yang belum dikirim dan mengembalikan stok ke gudang.")
     @PostMapping("/{id}/cancel")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_USER')")
     public ResponseEntity<?> cancelOrder(@PathVariable Long id) {
@@ -79,16 +89,9 @@ public class OrderController {
         return ResponseEntity.ok(ApiResponse.success("Order berhasil dibatalkan", cancelledOrder));
     }
 
-    @PostMapping("/{id}/pay")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_USER')")
-    public ResponseEntity<?> payOrder(
-        @PathVariable Long id, 
-        @RequestParam ("courier") String courierName) {
-        Order paidOrder = orderService.confirmPayment(id, courierName);
-        return ResponseEntity.ok(ApiResponse.success("Pembayaran berhasil dikonfirmasi", paidOrder));
-    }
 
     // Endpoint internal untuk menerima update dari Shipping Service
+    @Operation(summary = "Update Status Pengiriman (Internal)", description = "Sinkronisasi status pesanan berdasarkan laporan dari Shipping Service.")
     @PutMapping("/{id}/shipping-status")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<?> updateShippingStatus(@PathVariable Long id, @RequestParam String status) {

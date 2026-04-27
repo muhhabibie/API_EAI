@@ -1,74 +1,69 @@
--- Create databases
+-- Create Databases
 CREATE DATABASE IF NOT EXISTS auth_db;
 CREATE DATABASE IF NOT EXISTS product_db;
-CREATE DATABASE IF NOT EXISTS customer_db;
 CREATE DATABASE IF NOT EXISTS order_db;
+CREATE DATABASE IF NOT EXISTS customer_db;
 CREATE DATABASE IF NOT EXISTS inventory_db;
 CREATE DATABASE IF NOT EXISTS shipping_db;
-
--- Grant privileges to root
-GRANT ALL PRIVILEGES ON auth_db.* TO 'root'@'%';
-GRANT ALL PRIVILEGES ON product_db.* TO 'root'@'%';
-GRANT ALL PRIVILEGES ON customer_db.* TO 'root'@'%';
-GRANT ALL PRIVILEGES ON order_db.* TO 'root'@'%';
-GRANT ALL PRIVILEGES ON inventory_db.* TO 'root'@'%';
-GRANT ALL PRIVILEGES ON shipping_db.* TO 'root'@'%';
-
-FLUSH PRIVILEGES;
+CREATE DATABASE IF NOT EXISTS payment_db;
 
 -- Use auth_db
 USE auth_db;
 
--- Create customers table
-CREATE TABLE IF NOT EXISTS customers (
+CREATE TABLE IF NOT EXISTS roles (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(50) NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS users (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    username VARCHAR(255) NOT NULL UNIQUE,
-    email VARCHAR(255) NOT NULL UNIQUE,
+    username VARCHAR(100) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
-    name VARCHAR(255),
-    address VARCHAR(500),
+    email VARCHAR(255) NOT NULL UNIQUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Insert sample user (password: admin123)
--- BCrypt hash of "admin123": $2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcg7b3XeKeUxWdeS86E36DxYYYm
-INSERT INTO customers (username, email, password, name, address) VALUES 
-('admin', 'admin@example.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcg7b3XeKeUxWdeS86E36DxYYYm', 'Admin User', 'Jl. Merdeka No. 1, Jakarta'),
-('user', 'user@example.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcg7b3XeKeUxWdeS86E36DxYYYm', 'Regular User', 'Jl. Sudirman No. 10, Bandung')
-ON DUPLICATE KEY UPDATE email=email;
+CREATE TABLE IF NOT EXISTS user_roles (
+    user_id BIGINT,
+    role_id INT,
+    PRIMARY KEY (user_id, role_id),
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (role_id) REFERENCES roles(id)
+);
+
+-- Insert default roles
+INSERT IGNORE INTO roles (name) VALUES ('ROLE_USER'), ('ROLE_ADMIN');
 
 -- Use product_db
 USE product_db;
 
--- Create categories table
 CREATE TABLE IF NOT EXISTS categories (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(255) NOT NULL UNIQUE,
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
     description TEXT
 );
 
--- Create products table
 CREATE TABLE IF NOT EXISTS products (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     description TEXT,
     price DECIMAL(19,2) NOT NULL,
     stock INT NOT NULL DEFAULT 0,
-    category_id BIGINT,
+    category_id INT,
+    image_url VARCHAR(500),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (category_id) REFERENCES categories(id)
 );
 
 -- Insert sample categories
-INSERT INTO categories (name, description) VALUES 
-('Sayuran Segar', 'Berbagai macam sayuran hijau dan organik'),
-('Buah-buahan', 'Buah-buahan lokal dan import segar'),
-('Daging & Ikan', 'Daging sapi, ayam, dan ikan laut segar'),
-('Bumbu Dapur', 'Bumbu masakan dan rempah-rempah nusantara')
-ON DUPLICATE KEY UPDATE name=name;
+INSERT IGNORE INTO categories (name, description) VALUES 
+('Sayuran', 'Sayur-sayuran segar'),
+('Buah', 'Buah-buahan segar'),
+('Daging', 'Daging sapi, ayam, dan ikan'),
+('Bumbu', 'Bumbu dapur dan rempah');
 
 -- Insert sample products
-INSERT INTO products (name, description, price, stock, category_id) VALUES 
+INSERT IGNORE INTO products (name, description, price, stock, category_id) VALUES 
 ('Bayam Hijau Organik', 'Bayam hijau segar langsung dari petani (per ikat)', 5000, 100, 1),
 ('Tomat Merah Super', 'Tomat merah besar dan segar (per kg)', 15000, 50, 1),
 ('Apel Malang', 'Apel malang manis dan renyah (per kg)', 25000, 40, 2),
@@ -79,48 +74,44 @@ INSERT INTO products (name, description, price, stock, category_id) VALUES
 -- Use customer_db
 USE customer_db;
 
--- Create customers table (duplicate from auth_db for reference)
 CREATE TABLE IF NOT EXISTS customers (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
     email VARCHAR(255) NOT NULL UNIQUE,
-    name VARCHAR(255),
-    address VARCHAR(500),
-    phone VARCHAR(20),
+    address TEXT,
+    balance DECIMAL(19,2) DEFAULT 0.00,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Insert sample customers
-INSERT INTO customers (email, name, address, phone) VALUES 
-('admin@example.com', 'Admin User', 'Jl. Merdeka No. 1, Jakarta', '08123456789'),
-('user@example.com', 'Regular User', 'Jl. Sudirman No. 10, Bandung', '08198765432')
-ON DUPLICATE KEY UPDATE email=email;
+-- Data contoh: Kita beri saldo awal agar bisa belanja
+INSERT IGNORE INTO customers (name, email, address, balance) VALUES 
+('Muhammad Habibi', 'user@example.com', 'Jl. Merdeka No. 10, Jakarta', 500000.00);
 
 -- Use order_db
 USE order_db;
 
--- Create orders table
 CREATE TABLE IF NOT EXISTS orders (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    order_number VARCHAR(100) NOT NULL UNIQUE,
     customer_id BIGINT NOT NULL,
-    total_price DECIMAL(19,2) NOT NULL,
+    total_amount DECIMAL(19,2) NOT NULL,
     status VARCHAR(50) DEFAULT 'PENDING',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create order_items table
 CREATE TABLE IF NOT EXISTS order_items (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     order_id BIGINT NOT NULL,
     product_id BIGINT NOT NULL,
     quantity INT NOT NULL,
     price DECIMAL(19,2) NOT NULL,
+    subtotal DECIMAL(19,2) NOT NULL,
     FOREIGN KEY (order_id) REFERENCES orders(id)
 );
 
 -- Use inventory_db
 USE inventory_db;
 
--- Create inventory_reservations table
 CREATE TABLE IF NOT EXISTS inventory_reservations (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     product_id BIGINT NOT NULL,
@@ -133,12 +124,29 @@ CREATE TABLE IF NOT EXISTS inventory_reservations (
 -- Use shipping_db
 USE shipping_db;
 
--- Create shipments table
 CREATE TABLE IF NOT EXISTS shipments (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    tracking_number VARCHAR(100) NOT NULL UNIQUE,
     order_id BIGINT NOT NULL,
-    tracking_number VARCHAR(100),
+    courier_name VARCHAR(100),
+    receiver_name VARCHAR(255),
+    delivery_address TEXT,
+    shipping_fee DECIMAL(19,2) DEFAULT 0.00,
     status VARCHAR(50) DEFAULT 'PENDING',
-    estimated_delivery DATE,
+    shipped_at TIMESTAMP NULL,
+    delivered_at TIMESTAMP NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Use payment_db
+USE payment_db;
+
+CREATE TABLE IF NOT EXISTS payments (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    order_id BIGINT NOT NULL,
+    transaction_id VARCHAR(100) NOT NULL UNIQUE,
+    amount DECIMAL(19,2) NOT NULL,
+    payment_method VARCHAR(50),
+    status VARCHAR(50) DEFAULT 'PENDING',
+    payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

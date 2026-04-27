@@ -29,6 +29,9 @@ public class Customer {
 
     @Column
     private String address;
+    
+    @Column
+    private String role; // ROLE_USER atau ROLE_ADMIN
 
     @JsonIgnore
     @Column(nullable = false)
@@ -58,6 +61,9 @@ public class Customer {
     
     public String getAddress() { return address; }
     public void setAddress(String address) { this.address = address; }
+
+    public String getRole() { return role; }
+    public void setRole(String role) { this.role = role; }
 
     public String getPassword() { return password; }
     public void setPassword(String password) { this.password = password; }

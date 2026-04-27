@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.example.inventoryservice.dto.ApiResponse;
 import com.example.inventoryservice.entity.InventoryReservation;
@@ -23,12 +25,14 @@ import com.example.inventoryservice.service.InventoryService;
 @RestController
 @CrossOrigin(origins = "*")
 @RequestMapping("/api/inventory")
+@Tag(name = "Inventory Management", description = "Endpoint untuk mengelola reservasi dan stok barang")
 public class InventoryController {
 
     @Autowired
     private InventoryService inventoryService;
 
     // Hanya ADMIN bisa lihat semua reservasi
+    @Operation(summary = "Ambil Semua Reservasi", description = "Melihat daftar seluruh stok barang yang sedang dikunci/direservasi oleh sistem. Khusus Admin.")
     @GetMapping("/reservations")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<?> getAllReservations() {
@@ -37,6 +41,7 @@ public class InventoryController {
     }
     
     // Hanya ADMIN bisa buat reservasi stok
+    @Operation(summary = "Buat Reservasi Stok", description = "Mengunci sejumlah stok produk untuk pesanan tertentu secara manual. Khusus Admin.")
     @PostMapping("/reservations")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<?> reserveStock(@RequestBody Map<String, Object> payload) {
@@ -50,6 +55,7 @@ public class InventoryController {
     }
 
     // Hanya ADMIN bisa hapus reservasi
+    @Operation(summary = "Hapus/Lepas Reservasi", description = "Membatalkan reservasi stok dan mengembalikan jumlahnya ke stok utama. Khusus Admin.")
     @DeleteMapping("/reservations/{reservationId}")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<?> releaseReservation(@PathVariable Long reservationId) {

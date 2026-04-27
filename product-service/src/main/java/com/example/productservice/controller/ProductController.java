@@ -1,128 +1,95 @@
 package com.example.productservice.controller;
 
 import java.util.List;
-
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.bind.annotation.*;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.example.productservice.dto.ApiResponse;
 import com.example.productservice.dto.ProductRequest;
 import com.example.productservice.entity.Product;
-import com.example.productservice.repository.ProductRepository;
-import com.example.productservice.repository.CategoryRepository;
-import com.example.productservice.service.ProductService;
 import com.example.productservice.entity.Category;
-
-import jakarta.validation.Valid;
+import com.example.productservice.service.ProductService;
 
 @RestController
 @CrossOrigin(origins = "*")
 @RequestMapping("/api/products")
+@Tag(name = "Product Management", description = "Endpoint untuk mengelola katalog produk")
 public class ProductController {
+
     @Autowired
     private ProductService productService;
-    @Autowired
-    private ProductRepository productRepository;
-    @Autowired
-    private CategoryRepository categoryRepository;
 
-    // USER + ADMIN bisa lihat produk
+    @Operation(summary = "Ambil Semua Produk", description = "Melihat seluruh daftar produk yang tersedia di katalog.")
     @GetMapping
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_USER')")
     public ResponseEntity<?> getAllProducts() {
         List<Product> products = productService.getAllProducts();
         return ResponseEntity.ok(ApiResponse.success(products));
     }
 
-    // USER + ADMIN bisa lihat detail produk
+    @Operation(summary = "Ambil Produk by ID", description = "Melihat detail informasi satu produk tertentu.")
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_USER')")
     public ResponseEntity<?> getProductById(@PathVariable Long id) {
         return productService.getProductById(id)
-                .map(product -> ResponseEntity.ok(ApiResponse.success(product)))
-                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(ApiResponse.error("Produk tidak ditemukan")));
+                .map(p -> ResponseEntity.ok(ApiResponse.success(p)))
+                .orElse(ResponseEntity.notFound().build());
     }
 
-    // Hanya ADMIN bisa tambah produk
+    @Operation(summary = "Tambah Produk Baru", description = "Menambahkan produk baru ke katalog. Khusus Admin.")
     @PostMapping
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
-    public ResponseEntity<?> createProduct(@RequestBody @Valid ProductRequest request) {
+    public ResponseEntity<?> createProduct(@RequestBody ProductRequest request) {
         Product product = new Product();
         product.setName(request.getName());
         product.setPrice(request.getPrice());
         product.setStock(request.getStock());
-
-        // Mencari kategori berdasarkan ID yang dikirim
-        Category category = categoryRepository.findById(request.getCategoryId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Kategori tidak ditemukan"));
-        product.setCategory(category);
-
+        product.setDescription(request.getDescription());
+        
+        if (request.getCategoryId() != null) {
+            Category category = new Category();
+            category.setId(request.getCategoryId());
+            product.setCategory(category);
+        }
+        
         Product saved = productService.createProduct(product);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Produk berhasil dibuat", saved));
+        return ResponseEntity.ok(ApiResponse.success("Produk berhasil ditambahkan", saved));
     }
 
-    // Hanya ADMIN bisa update produk
+    @Operation(summary = "Update Data Produk", description = "Memperbarui informasi harga, nama, atau deskripsi produk. Khusus Admin.")
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
-    public ResponseEntity<?> updateProduct(@PathVariable Long id, @RequestBody Product product) {
-        Product updated = productService.updateProduct(id, product);
-        if (updated != null) {
-            return ResponseEntity.ok(ApiResponse.success("Produk berhasil diupdate", updated));
+    public ResponseEntity<?> updateProduct(@PathVariable Long id, @RequestBody ProductRequest request) {
+        Product product = new Product();
+        product.setName(request.getName());
+        product.setPrice(request.getPrice());
+        product.setStock(request.getStock());
+        product.setDescription(request.getDescription());
+        
+        if (request.getCategoryId() != null) {
+            Category category = new Category();
+            category.setId(request.getCategoryId());
+            product.setCategory(category);
         }
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(ApiResponse.error("Produk tidak ditemukan"));
+        
+        Product updated = productService.updateProduct(id, product);
+        return ResponseEntity.ok(ApiResponse.success("Produk berhasil diupdate", updated));
     }
 
-    // Hanya ADMIN bisa update stok
-    @PutMapping("/{id}/stock")
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
-    public ResponseEntity<?> updateStock(@PathVariable Long id, @RequestParam int add) {
-        Product updatedProduct = productService.updateStock(id, add);
-        return ResponseEntity.ok(ApiResponse.success("Stok berhasil diupdate", updatedProduct));
-    }
-
-    // Hanya ADMIN bisa hapus produk
+    @Operation(summary = "Hapus Produk", description = "Menghapus produk dari katalog secara permanen. Khusus Admin.")
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<?> deleteProduct(@PathVariable Long id) {
-        boolean isDeleted = productService.deleteProduct(id);
-        if (isDeleted) {
-            return ResponseEntity.ok(ApiResponse.success("Produk berhasil dihapus", null));
-        }
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(ApiResponse.error("Produk tidak ditemukan"));
+        productService.deleteProduct(id);
+        return ResponseEntity.ok(ApiResponse.success("Produk berhasil dihapus", null));
     }
-
-    // Hanya ADMIN bisa adjust stok
-    @PatchMapping("/{id}/adjustment")
+    @Operation(summary = "Penyesuaian Stok Produk", description = "Menambah atau mengurangi stok produk secara manual. Khusus Admin.")
+    @PostMapping("/{id}/adjustment")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
-    public ResponseEntity<?> adjustStock(@PathVariable Long id, @RequestParam Integer amount) {
-        Product product = productRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Produk tidak ditemukan"));
-
-        int newStock = product.getStock() + amount;
-        if (newStock < 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Stok tidak boleh negatif!");
-        }
-
-        product.setStock(newStock);
-        Product saved = productRepository.save(product);
-        return ResponseEntity.ok(ApiResponse.success("Stok berhasil disesuaikan", saved));
+    public ResponseEntity<?> adjustStock(@PathVariable Long id, @RequestParam int amount) {
+        Product updated = productService.adjustStock(id, amount);
+        return ResponseEntity.ok(ApiResponse.success("Stok berhasil disesuaikan", updated));
     }
 }

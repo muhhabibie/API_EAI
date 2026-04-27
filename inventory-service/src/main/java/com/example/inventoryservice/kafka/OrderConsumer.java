@@ -22,8 +22,15 @@ public class OrderConsumer {
                     System.out.println("   [SUCCESS] Reservasi berhasil untuk Product ID " + item.getProductId() + " sebanyak " + item.getQuantity());
                 } catch (Exception e) {
                     System.err.println("   [FAILED] Gagal reservasi stok Product ID " + item.getProductId() + ": " + e.getMessage());
-                    // Di sini idealnya kita kirim pesan Kafka balik ke order-service untuk membatalkan pesanan (Saga Pattern)
                 }
+            }
+        } else if ("CANCELLED".equals(order.getStatus())) {
+            System.out.println("-> Memproses pembatalan reservasi/pengembalian stok untuk Order: " + order.getOrderNumber());
+            try {
+                inventoryService.releaseReservationByOrderNumber(order.getOrderNumber());
+                System.out.println("   [SUCCESS] Stok berhasil dikembalikan untuk Order: " + order.getOrderNumber());
+            } catch (Exception e) {
+                System.err.println("   [FAILED] Gagal mengembalikan stok: " + e.getMessage());
             }
         }
     }

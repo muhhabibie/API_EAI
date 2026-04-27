@@ -30,8 +30,11 @@ public class ProductService {
         return productRepository.findById(id)
             .map(product -> {
                 product.setName(request.getName()); 
+                product.setDescription(request.getDescription());
+                product.setImageUrl(request.getImageUrl());
                 product.setPrice(request.getPrice()); 
                 product.setStock(request.getStock()); 
+                product.setCategory(request.getCategory()); 
                 return productRepository.save(product); 
             }).orElse(null); 
     }
@@ -43,16 +46,14 @@ public class ProductService {
         }
         return false; 
     }
-
     @org.springframework.transaction.annotation.Transactional
-    public Product updateStock(Long productId, int amountToAdd) {
-        Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new RuntimeException("Produk dengan ID " + productId + " tidak ditemukan"));
-
-        int newStock = product.getStock() + amountToAdd;
+    public Product adjustStock(Long id, int amount) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Produk tidak ditemukan"));
         
+        int newStock = product.getStock() + amount;
         if (newStock < 0) {
-            throw new RuntimeException("Penyesuaian gagal: Stok akhir tidak boleh kurang dari 0.");
+            throw new RuntimeException("Stok tidak mencukupi untuk Produk: " + product.getName());
         }
         
         product.setStock(newStock);

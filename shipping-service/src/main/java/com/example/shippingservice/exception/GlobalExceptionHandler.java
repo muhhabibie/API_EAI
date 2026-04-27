@@ -12,7 +12,15 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<?> handleRuntimeException(RuntimeException ex) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.error(ex.getMessage()));
+        String msg = ex.getMessage();
+        HttpStatus status = HttpStatus.BAD_REQUEST; // Default 400
+
+        // Jika pesan mengandung 'tidak ditemukan', berikan 404
+        if (msg != null && (msg.toLowerCase().contains("tidak ditemukan") || msg.toLowerCase().contains("not found"))) {
+            status = HttpStatus.NOT_FOUND;
+        }
+
+        return ResponseEntity.status(status)
+                .body(ApiResponse.error(msg));
     }
 }

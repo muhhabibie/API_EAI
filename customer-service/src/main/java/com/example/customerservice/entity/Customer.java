@@ -29,7 +29,8 @@ public class Customer {
 
     @Column
     private String address;
-
+    private Double balance;
+    private String phone;
     @JsonIgnore
     @Column(nullable = false)
     private String password;
@@ -58,6 +59,12 @@ public class Customer {
     
     public String getAddress() { return address; }
     public void setAddress(String address) { this.address = address; }
+
+    public Double getBalance() { return balance; }
+    public void setBalance(Double balance) { this.balance = balance; }
+
+    public String getPhone() { return phone; }
+    public void setPhone(String phone) { this.phone = phone; }
 
     public String getPassword() { return password; }
     public void setPassword(String password) { this.password = password; }

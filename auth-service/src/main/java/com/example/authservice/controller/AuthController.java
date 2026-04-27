@@ -1,5 +1,6 @@
 package com.example.authservice.controller;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -11,14 +12,14 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestTemplate;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.example.authservice.dto.ApiResponse;
+import com.example.authservice.dto.LoginRequest;
+import com.example.authservice.dto.RegisterRequest;
 import com.example.authservice.entity.Customer;
 import com.example.authservice.repository.CustomerRepository;
 import com.example.authservice.security.JwtUtil;
@@ -26,6 +27,7 @@ import com.example.authservice.security.JwtUtil;
 @RestController
 @RequestMapping("/api")
 @CrossOrigin(origins = "*")
+@Tag(name = "Authentication Management", description = "Endpoint untuk Login, Registrasi, dan Dashboard")
 public class AuthController {
 
     @Autowired
@@ -37,29 +39,23 @@ public class AuthController {
     @Autowired
     private JwtUtil jwtUtil;
 
-    public static class LoginRequest {
-        public String email;
-        public String password;
-    }
+    private final RestTemplate restTemplate = new RestTemplate();
 
+    @Operation(summary = "Login Pengguna", description = "Masuk ke sistem menggunakan email dan password untuk mendapatkan token JWT.")
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody LoginRequest loginRequest) {
-        Optional<Customer> customerOpt = customerRepository.findByEmail(loginRequest.email);
+    public ResponseEntity<?> login(@RequestBody LoginRequest request) {
+        Optional<Customer> customerOpt = customerRepository.findByEmail(request.getEmail());
 
         if (customerOpt.isPresent()) {
             Customer customer = customerOpt.get();
-
-            if (passwordEncoder.matches(loginRequest.password, customer.getPassword())) {
-                String role = "admin".equalsIgnoreCase(customer.getUsername())
-                        ? "ROLE_ADMIN"
-                        : "ROLE_USER";
-
+            if (passwordEncoder.matches(request.getPassword(), customer.getPassword())) {
+                String role = customer.getRole() != null ? customer.getRole() : "ROLE_USER";
                 String token = jwtUtil.generateToken(customer.getEmail(), role);
 
                 Map<String, String> loginData = new HashMap<>();
                 loginData.put("token", token);
                 loginData.put("email", customer.getEmail());
-                loginData.put("name", customer.getName());
+                loginData.put("username", customer.getUsername());
                 loginData.put("role", role);
 
                 return ResponseEntity.ok(ApiResponse.success("Login Berhasil!", loginData));
@@ -70,40 +66,46 @@ public class AuthController {
                 .body(ApiResponse.error("Email atau password salah"));
     }
 
-        @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody Map<String, String> request) {
-        String name = request.get("name");
-        String email = request.get("email");
-        String username = request.get("username");
-        String password = request.get("password");
-        String address = request.getOrDefault("address", "");
-
-        if (email == null || password == null || name == null || username == null) {
-            return ResponseEntity.badRequest()
-                    .body(ApiResponse.error("Field name, email, username, dan password wajib diisi"));
+    @Operation(summary = "Registrasi Pengguna/Admin", description = "Mendaftarkan akun baru ke sistem. Pendaftaran Admin butuh kunci rahasia.")
+    @PostMapping("/register")
+    public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
+        String roleName = request.getRole() != null ? request.getRole() : "ROLE_USER";
+        
+        // Proteksi Admin
+        if (roleName.equals("ROLE_ADMIN")) {
+            if (!"RAHASIA_ADMIN_123".equals(request.getAdminKey())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.error("Kunci rahasia Admin salah!"));
+            }
+        }
+        
+        // Proteksi User (Harus via Customer Service)
+        if (roleName.equals("ROLE_USER")) {
+            String systemKey = (String) request.getAdminKey(); // Kita pinjam field adminKey untuk systemKey
+            if (!"INTERNAL_SYSTEM_KEY_99".equals(systemKey)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.error("Pendaftaran User harus melalui Customer Service!"));
+            }
         }
 
-        if (customerRepository.findByEmail(email).isPresent()) {
-            return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body(ApiResponse.error("Email sudah terdaftar"));
+        if (customerRepository.findByEmail(request.getEmail()).isPresent()) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("Email sudah terdaftar"));
         }
 
-        Customer newCustomer = new Customer();
-        newCustomer.setName(name);
-        newCustomer.setEmail(email);
-        newCustomer.setUsername(username);
-        newCustomer.setPassword(passwordEncoder.encode(password)); // Hash otomatis
-        newCustomer.setAddress(address);
+        Customer customer = new Customer();
+        customer.setUsername(request.getUsername());
+        customer.setPassword(passwordEncoder.encode(request.getPassword()));
+        customer.setEmail(request.getEmail());
+        customer.setName(request.getName());
+        customer.setAddress(request.getAddress());
+        customer.setRole(roleName);
 
-        customerRepository.save(newCustomer);
+        customerRepository.save(customer);
 
-        Map<String, String> data = new HashMap<>();
-        data.put("email", newCustomer.getEmail());
-        data.put("username", newCustomer.getUsername());
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Registrasi berhasil", data));
+        return ResponseEntity.ok(ApiResponse.success("User berhasil didaftarkan sebagai " + roleName, null));
     }
 
+    @Operation(summary = "Dashboard Admin", description = "Endpoint khusus Admin untuk melihat profil dan hak akses.")
     @GetMapping("/admin/dashboard")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<?> adminDashboard() {
@@ -112,20 +114,5 @@ public class AuthController {
         data.put("email", auth.getName());
         data.put("authorities", auth.getAuthorities());
         return ResponseEntity.ok(ApiResponse.success("Selamat datang Admin!", data));
-    }
-
-    @GetMapping("/user/profile")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_USER')")
-    public ResponseEntity<?> userProfile() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        Map<String, Object> data = new HashMap<>();
-        data.put("email", auth.getName());
-        data.put("authorities", auth.getAuthorities());
-        return ResponseEntity.ok(ApiResponse.success("Profil User", data));
-    }
-
-    @GetMapping("/public/health")
-    public ResponseEntity<?> health() {
-        return ResponseEntity.ok(ApiResponse.success("Auth Service is Running", null));
     }
 }

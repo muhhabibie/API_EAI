@@ -15,6 +15,11 @@ public class OrderProducer {
 
     public void sendOrderCreated(OrderMessage message) {
         kafkaTemplate.send(TOPIC, message);
-        System.out.println("[KAFKA PRODUCER] Event terkirim: " + message.getOrderNumber());
+        System.out.println("[KAFKA PRODUCER] Order Created: " + message.getOrderNumber());
+    }
+
+    public void sendOrderCancelled(OrderMessage message) {
+        kafkaTemplate.send(TOPIC, message);
+        System.out.println("[KAFKA PRODUCER] Order Cancelled: " + message.getOrderNumber());
     }
 }
