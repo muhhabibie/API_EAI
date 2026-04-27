@@ -57,4 +57,14 @@ public class JwtUtil {
     private boolean isTokenExpired(String token) {
         return extractClaim(token, Claims::getExpiration).before(new Date());
     }
+
+    public String generateSystemToken() {
+        return Jwts.builder()
+                .setSubject("SYSTEM_INVENTORY")
+                .claim("role", "ROLE_ADMIN")
+                .setIssuedAt(new Date(System.currentTimeMillis()))
+                .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 5)) // 5 Menit
+                .signWith(getSigningKey())
+                .compact();
+    }
 }

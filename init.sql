@@ -61,20 +61,20 @@ CREATE TABLE IF NOT EXISTS products (
 
 -- Insert sample categories
 INSERT INTO categories (name, description) VALUES 
-('Makanan', 'Produk makanan dan minuman'),
-('Kerajinan', 'Produk kerajinan tangan'),
-('Fashion', 'Produk fashion dan pakaian'),
-('Elektronik', 'Produk elektronik dan gadget')
+('Sayuran Segar', 'Berbagai macam sayuran hijau dan organik'),
+('Buah-buahan', 'Buah-buahan lokal dan import segar'),
+('Daging & Ikan', 'Daging sapi, ayam, dan ikan laut segar'),
+('Bumbu Dapur', 'Bumbu masakan dan rempah-rempah nusantara')
 ON DUPLICATE KEY UPDATE name=name;
 
 -- Insert sample products
 INSERT INTO products (name, description, price, stock, category_id) VALUES 
-('Kopi Arabika Premium', 'Kopi arabika pilihan dari Sumatra', 150000, 50, 1),
-('Batik Tradisional', 'Batik asli dengan motif tradisional', 250000, 30, 3),
-('Tas Rajut', 'Tas tangan rajut dengan desain modern', 180000, 25, 3),
-('Keramik Buatan Tangan', 'Keramik unik hasil karya pengrajin lokal', 320000, 15, 2),
-('Minyak Kelapa Organik', 'Minyak kelapa murni tanpa bahan kimia', 120000, 40, 1),
-('Tas Kulit Asli', 'Tas kulit berkualitas tinggi dengan jahitan rapi', 450000, 20, 3);
+('Bayam Hijau Organik', 'Bayam hijau segar langsung dari petani (per ikat)', 5000, 100, 1),
+('Tomat Merah Super', 'Tomat merah besar dan segar (per kg)', 15000, 50, 1),
+('Apel Malang', 'Apel malang manis dan renyah (per kg)', 25000, 40, 2),
+('Daging Sapi Has Dalam', 'Daging sapi lokal kualitas premium (per kg)', 130000, 20, 3),
+('Ikan Gurame Segar', 'Ikan gurame ukuran sedang (per ekor)', 45000, 30, 3),
+('Bawang Merah Brebes', 'Bawang merah pilihan kualitas terbaik (per kg)', 35000, 60, 4);
 
 -- Use customer_db
 USE customer_db;

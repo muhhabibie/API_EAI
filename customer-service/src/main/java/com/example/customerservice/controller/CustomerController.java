@@ -56,15 +56,50 @@ public class CustomerController {
     // Registrasi — terbuka tanpa token (diatur di SecurityConfig)
     @PostMapping
     public ResponseEntity<?> createCustomer(@RequestBody @Valid CustomerRequest request) {
+        // 1. Simpan Profil ke Database Customer (customer_db)
         Customer customer = new Customer();
+        customer.setUsername(request.getUsername());
         customer.setName(request.getName());
         customer.setEmail(request.getEmail());
         customer.setAddress(request.getAddress());
+        // Simpan versi aslinya ke database Customer jika diinginkan,
+        // tapi sebaiknya password di-hash. Kita akan tetap biarkan hash di sini,
+        // TAPI yang terpenting adalah mendaftarkan ke auth-service!
         customer.setPassword(passwordEncoder.encode(request.getPassword()));
         
         Customer saved = customerService.createCustomer(customer);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Customer berhasil dibuat", saved));
+
+        // 2. Sinkronisasi Kredensial ke Auth Service (Opsi 2)
+        try {
+            org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate();
+            
+            java.util.Map<String, String> authPayload = new java.util.HashMap<>();
+            // Menggunakan username yang diinputkan pengguna sendiri
+            authPayload.put("username", request.getUsername()); 
+            authPayload.put("name", request.getName());
+            authPayload.put("email", request.getEmail());
+            authPayload.put("address", request.getAddress());
+            authPayload.put("password", request.getPassword()); // Kirim password mentah ke Auth Service untuk di-hash di sana
+            
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+            org.springframework.http.HttpEntity<java.util.Map<String, String>> entity = new org.springframework.http.HttpEntity<>(authPayload, headers);
+            
+            // Tembak API auth-service
+            ResponseEntity<String> response = restTemplate.postForEntity("http://localhost:8081/api/register", entity, String.class);
+            
+            if (response.getStatusCode() == HttpStatus.CREATED) {
+                return ResponseEntity.status(HttpStatus.CREATED)
+                        .body(ApiResponse.success("Registrasi sukses! Profil dibuat dan terdaftar di Auth Service", saved));
+            } else {
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .body(ApiResponse.error("Profil dibuat, tapi gagal sinkronisasi ke Auth Service"));
+            }
+        } catch (Exception e) {
+            System.err.println("Gagal panggil Auth Service: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Profil berhasil disimpan, tapi gagal tersambung ke Auth Service: " + e.getMessage()));
+        }
     }
 
     // ADMIN + USER bisa update customer

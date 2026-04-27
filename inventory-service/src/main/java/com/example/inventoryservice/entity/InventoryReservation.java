@@ -13,11 +13,14 @@ import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "inventory_reservations")
-@JsonPropertyOrder({"id", "productId", "quantity", "status", "createdAt"})
+@JsonPropertyOrder({"id", "orderNumber", "productId", "quantity", "status", "createdAt"})
 public class InventoryReservation {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(nullable = false, name = "order_number")
+    private String orderNumber;
 
     @Column(nullable = false)
     private Long productId;
@@ -34,7 +37,8 @@ public class InventoryReservation {
     public InventoryReservation() {
     }
 
-    public InventoryReservation(Long productId, Integer quantity) {
+    public InventoryReservation(String orderNumber, Long productId, Integer quantity) {
+        this.orderNumber = orderNumber;
         this.productId = productId;
         this.quantity = quantity;
         this.createdAt = LocalDateTime.now();
@@ -47,6 +51,14 @@ public class InventoryReservation {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public String getOrderNumber() {
+        return orderNumber;
+    }
+
+    public void setOrderNumber(String orderNumber) {
+        this.orderNumber = orderNumber;
     }
 
     public Long getProductId() {

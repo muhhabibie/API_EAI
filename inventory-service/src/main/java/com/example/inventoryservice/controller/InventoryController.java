@@ -42,7 +42,9 @@ public class InventoryController {
     public ResponseEntity<?> reserveStock(@RequestBody Map<String, Object> payload) {
         Long productId = Long.valueOf(payload.get("productId").toString());
         Integer quantity = Integer.valueOf(payload.get("quantity").toString());
-        InventoryReservation reservation = inventoryService.reserveStock(productId, quantity);
+        String orderNumber = payload.containsKey("orderNumber") ? payload.get("orderNumber").toString() : "MANUAL-" + System.currentTimeMillis();
+        
+        InventoryReservation reservation = inventoryService.reserveStock(orderNumber, productId, quantity);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Reservasi stok berhasil dibuat", reservation));
     }

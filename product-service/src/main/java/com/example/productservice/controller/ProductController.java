@@ -23,7 +23,9 @@ import com.example.productservice.dto.ApiResponse;
 import com.example.productservice.dto.ProductRequest;
 import com.example.productservice.entity.Product;
 import com.example.productservice.repository.ProductRepository;
+import com.example.productservice.repository.CategoryRepository;
 import com.example.productservice.service.ProductService;
+import com.example.productservice.entity.Category;
 
 import jakarta.validation.Valid;
 
@@ -35,6 +37,8 @@ public class ProductController {
     private ProductService productService;
     @Autowired
     private ProductRepository productRepository;
+    @Autowired
+    private CategoryRepository categoryRepository;
 
     // USER + ADMIN bisa lihat produk
     @GetMapping
@@ -62,6 +66,11 @@ public class ProductController {
         product.setName(request.getName());
         product.setPrice(request.getPrice());
         product.setStock(request.getStock());
+
+        // Mencari kategori berdasarkan ID yang dikirim
+        Category category = categoryRepository.findById(request.getCategoryId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Kategori tidak ditemukan"));
+        product.setCategory(category);
 
         Product saved = productService.createProduct(product);
         return ResponseEntity.status(HttpStatus.CREATED)

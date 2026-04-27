@@ -31,7 +31,8 @@ public class SecurityConfig {
             .sessionManagement(session ->
                     session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                    // GET produk dan kategori bisa diakses publik (opsional: bisa diubah ke authenticated)
+                    .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+// GET produk dan kategori bisa diakses publik (opsional: bisa diubah ke authenticated)
                     .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/products/**", "/api/categories/**").permitAll()
                     // Operasi write wajib JWT
                     .anyRequest().authenticated()

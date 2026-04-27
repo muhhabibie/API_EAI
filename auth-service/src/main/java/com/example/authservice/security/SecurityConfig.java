@@ -33,8 +33,9 @@ public class SecurityConfig {
             .sessionManagement(session ->
                     session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                    // endpoint login dan health bebas token
-                    .requestMatchers("/api/login", "/api/public/**").permitAll()
+                    .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+// endpoint login, register, dan health bebas token
+                    .requestMatchers("/api/login", "/api/register", "/api/public/**").permitAll()
                     // semua endpoint lain butuh autentikasi
                     .anyRequest().authenticated()
             )

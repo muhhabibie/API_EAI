@@ -20,6 +20,8 @@ import com.example.orderservice.dto.ApiResponse;
 import com.example.orderservice.entity.Order;
 import com.example.orderservice.service.OrderService;
 
+import com.example.orderservice.dto.OrderRequestDTO;
+
 @RestController
 @CrossOrigin(origins = "*")
 @RequestMapping("/api/orders")
@@ -30,9 +32,8 @@ public class OrderController {
     // ADMIN + USER bisa buat order
     @PostMapping
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_USER')")
-    public ResponseEntity<?> createOrder(@RequestParam Long customerId,
-            @RequestBody List<OrderService.ItemRequest> items) {
-        Order created = orderService.createOrder(customerId, items);
+    public ResponseEntity<?> createOrder(@RequestBody OrderRequestDTO requestDTO) {
+        Order created = orderService.createOrder(requestDTO.getCustomerId(), requestDTO.getItems());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Order berhasil dibuat", created));
     }
@@ -78,7 +79,6 @@ public class OrderController {
         return ResponseEntity.ok(ApiResponse.success("Order berhasil dibatalkan", cancelledOrder));
     }
 
-    // ADMIN + USER bisa bayar order
     @PostMapping("/{id}/pay")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_USER')")
     public ResponseEntity<?> payOrder(
@@ -86,5 +86,13 @@ public class OrderController {
         @RequestParam ("courier") String courierName) {
         Order paidOrder = orderService.confirmPayment(id, courierName);
         return ResponseEntity.ok(ApiResponse.success("Pembayaran berhasil dikonfirmasi", paidOrder));
+    }
+
+    // Endpoint internal untuk menerima update dari Shipping Service
+    @PutMapping("/{id}/shipping-status")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    public ResponseEntity<?> updateShippingStatus(@PathVariable Long id, @RequestParam String status) {
+        orderService.updateOrderStatusFromShipping(id, status);
+        return ResponseEntity.ok(ApiResponse.success("Status order berhasil diupdate dari pengiriman", null));
     }
 }

@@ -6,8 +6,10 @@ public class OrderMessage {
     private Long customerId;
     private String status;
     private Double totalAmount;
+    private java.util.List<OrderItemMessage> items;
 
-    // Getters and Setters
+    public OrderMessage() {}
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -22,4 +24,20 @@ public class OrderMessage {
 
     public Double getTotalAmount() { return totalAmount; }
     public void setTotalAmount(Double totalAmount) { this.totalAmount = totalAmount; }
+
+    public java.util.List<OrderItemMessage> getItems() { return items; }
+    public void setItems(java.util.List<OrderItemMessage> items) { this.items = items; }
+
+    public static class OrderItemMessage {
+        private Long productId;
+        private Integer quantity;
+
+        public OrderItemMessage() {}
+
+        public Long getProductId() { return productId; }
+        public void setProductId(Long productId) { this.productId = productId; }
+
+        public Integer getQuantity() { return quantity; }
+        public void setQuantity(Integer quantity) { this.quantity = quantity; }
+    }
 }

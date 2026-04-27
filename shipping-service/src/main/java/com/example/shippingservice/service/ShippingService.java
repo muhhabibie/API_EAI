@@ -17,6 +17,9 @@ public class ShippingService {
     @Autowired
     private ShipmentRepository shipmentRepository;
 
+    @Autowired
+    private com.example.shippingservice.security.JwtUtil jwtUtil;
+
     // ========== STATUS CONSTANTS ==========
     public static final String STATUS_PENDING = "PENDING";
     public static final String STATUS_PICKED_UP = "PICKED_UP";
@@ -70,7 +73,27 @@ public class ShippingService {
             shipment.setDeliveredAt(LocalDateTime.now());
         }
         
-        return shipmentRepository.save(shipment);
+        Shipment savedShipment = shipmentRepository.save(shipment);
+
+        // --- MENGHUBUNGI ORDER SERVICE ---
+        try {
+            org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate();
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            headers.set("Authorization", "Bearer " + jwtUtil.generateSystemToken());
+
+            org.springframework.http.HttpEntity<String> entity = new org.springframework.http.HttpEntity<>(headers);
+
+            restTemplate.exchange(
+                "http://localhost:8084/api/orders/" + savedShipment.getOrderId() + "/shipping-status?status=" + newStatus,
+                org.springframework.http.HttpMethod.PUT,
+                entity,
+                String.class
+            );
+        } catch (Exception e) {
+            System.err.println("PERINGATAN: Gagal mengupdate status order di Order Service untuk Order ID " + savedShipment.getOrderId() + ". Error: " + e.getMessage());
+        }
+
+        return savedShipment;
     }
 
     // ========== QUERIES ==========

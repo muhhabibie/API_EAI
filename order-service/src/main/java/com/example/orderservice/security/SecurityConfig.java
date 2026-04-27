@@ -31,6 +31,10 @@ public class SecurityConfig {
             .sessionManagement(session ->
                     session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                    // Mengizinkan Swagger UI
+                    .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                    // Mengizinkan /error agar tidak menjadi 403
+                    .requestMatchers("/error").permitAll()
                     // Semua endpoint order wajib JWT
                     .anyRequest().authenticated()
             )

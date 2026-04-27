@@ -33,7 +33,8 @@ public class SecurityConfig {
             .sessionManagement(session ->
                     session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                    // POST /api/customers bebas (registrasi)
+                    .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+// POST /api/customers bebas (registrasi)
                     .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/customers").permitAll()
                     // Semua request lain wajib JWT
                     .anyRequest().authenticated()
