@@ -17,7 +17,8 @@ public class ApiGatewayApplication {
 
 	@Bean
 	public RestTemplate restTemplate() {
-		return new RestTemplate();
+		// Menggunakan JdkClientHttpRequestFactory agar mendukung HTTP method PATCH
+		return new RestTemplate(new org.springframework.http.client.JdkClientHttpRequestFactory());
 	}
 
 	@Bean

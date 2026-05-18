@@ -6,7 +6,7 @@ public class ShipmentRequest {
     @Schema(example = "1", description = "ID dari Order yang akan dikirim")
     private Long orderId;
     
-    @Schema(example = "JNE Express", description = "Nama kurir pengiriman")
+    @Schema(example = "JNE_EXPRESS", description = "Nama kurir pengiriman. Pilihan valid: JNE, JNE_EXPRESS, JNT, JNT_EXPRESS, SICEPAT, POS_INDONESIA, GOSEND, GRAB_EXPRESS. Jika format salah, default ke JNE.")
     private String courierName;
     
     @Schema(example = "Muhammad Habibi", description = "Nama penerima paket")

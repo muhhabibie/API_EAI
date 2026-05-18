@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -16,37 +17,50 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.example.orderservice.dto.ApiResponse;
 import com.example.orderservice.entity.Order;
 import com.example.orderservice.service.OrderService;
-
 import com.example.orderservice.dto.OrderRequestDTO;
 
 @RestController
 @CrossOrigin(origins = "*")
 @RequestMapping("/api/orders")
-@Tag(name = "Order Management", description = "Endpoint untuk mengelola pemesanan barang")
+@Tag(
+    name = "Order Management",
+    description = "Endpoint untuk membuat dan mengelola pesanan. Setelah order dibuat, " +
+                  "sistem Saga otomatis memproses: (1) Reservasi stok, (2) Pembayaran dari saldo customer, " +
+                  "(3) Pembuatan data pengiriman."
+)
 public class OrderController {
     @Autowired
     private OrderService orderService;
 
-    // ADMIN + USER bisa buat order
-    @Operation(summary = "Buat Order Baru", description = "Membuat pesanan baru dengan daftar produk dan jumlah tertentu.")
+    @Operation(
+        summary = "Buat Order Baru",
+        description = "Membuat pesanan baru. Setelah berhasil, sistem Saga Choreography otomatis berjalan: " +
+                      "stok direservasi → saldo dipotong → pengiriman dibuat. " +
+                      "Status order akan berubah: PENDING → AWAITING_PAYMENT → PAID."
+    )
     @PostMapping
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_USER')")
     public ResponseEntity<?> createOrder(@RequestBody OrderRequestDTO requestDTO) {
         Order created = orderService.createOrder(requestDTO.getCustomerId(), requestDTO.getItems());
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Order berhasil dibuat", created));
+                .body(ApiResponse.success("Pesanan berhasil dibuat dengan nomor order: " + created.getOrderNumber(), created));
     }
 
-    // ADMIN bisa lihat semua order, USER juga bisa (filter by customerId)
-    @Operation(summary = "Ambil Semua Order", description = "Melihat riwayat pesanan (bisa difilter berdasarkan customerId).")
+    @Operation(
+        summary = "Ambil Semua Order",
+        description = "Melihat riwayat pesanan. Filter dengan customerId untuk melihat order milik customer tertentu."
+    )
     @GetMapping
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_USER')")
-    public ResponseEntity<?> getAllOrders(@RequestParam(required = false) Long customerId) {
+    public ResponseEntity<?> getAllOrders(
+        @Parameter(description = "Filter berdasarkan ID customer. Kosongkan untuk melihat semua order (Admin).", example = "1")
+        @RequestParam(required = false) Long customerId) {
         List<Order> orders;
         if (customerId != null) {
             orders = orderService.getOrdersByCustomer(customerId);
@@ -56,46 +70,90 @@ public class OrderController {
         return ResponseEntity.ok(ApiResponse.success(orders));
     }
 
-    // Hanya ADMIN bisa update status order
-    @Operation(summary = "Update Status Order", description = "Mengubah status pesanan secara manual (PENDING, PAID, dll). Khusus Admin.")
+    @Operation(
+        summary = "Update Status Order (Admin)",
+        description = "Mengubah status pesanan secara manual. Hanya untuk koreksi data oleh Admin. " +
+                      "Status valid: PENDING, AWAITING_PAYMENT, PAID, PROCESSING, SHIPPED, DELIVERED, COMPLETED, CANCELLED."
+    )
     @PutMapping("/{id}/status")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
-    public ResponseEntity<?> updateStatus(@PathVariable Long id, 
-            @io.swagger.v3.oas.annotations.Parameter(description = "Status: PENDING, PAID, PROCESSING, SHIPPED, DELIVERED, COMPLETED, CANCELLED")
+    public ResponseEntity<?> updateStatus(
+            @Parameter(description = "ID Order yang akan diupdate.", example = "1") @PathVariable Long id,
+            @Parameter(description = "Status baru order.", example = "PAID",
+                schema = @io.swagger.v3.oas.annotations.media.Schema(
+                    allowableValues = {"PENDING", "AWAITING_PAYMENT", "PAID", "PROCESSING", "SHIPPED", "DELIVERED", "COMPLETED", "CANCELLED"}))
             @RequestParam String status) {
+        // FIX isu #1: Hapus dead null-check — updateStatus() selalu throw exception
+        // jika order tidak ada (via .orElseThrow()), tidak pernah return null.
+        // Error handling ditangani oleh GlobalExceptionHandler.
         Order updated = orderService.updateStatus(id, status);
-        if (updated == null) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(ApiResponse.error("Order tidak ditemukan"));
-        }
-        return ResponseEntity.ok(ApiResponse.success("Status order berhasil diupdate", updated));
+        return ResponseEntity.ok(ApiResponse.success("Status pesanan " + updated.getOrderNumber() + " berhasil diperbarui menjadi " + updated.getStatus(), updated));
     }
 
-    // ADMIN + USER bisa lihat detail order
-    @Operation(summary = "Ambil Detail Order", description = "Melihat informasi lengkap satu pesanan termasuk item di dalamnya.")
+    @Operation(
+        summary = "Ambil Detail Order",
+        description = "Melihat informasi lengkap satu pesanan termasuk item produk, total harga, dan status terkini."
+    )
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_USER')")
-    public ResponseEntity<?> getOrderById(@PathVariable Long id) {
+    public ResponseEntity<?> getOrderById(
+            @Parameter(description = "ID Order yang ingin dilihat.", example = "1") @PathVariable Long id) {
         Order order = orderService.getOrderById(id);
         return ResponseEntity.ok(ApiResponse.success(order));
     }
 
-    // ADMIN + USER bisa cancel order
-    @Operation(summary = "Batalkan Order", description = "Membatalkan pesanan yang belum dikirim dan mengembalikan stok ke gudang.")
+    @Operation(
+        summary = "Batalkan Order",
+        description = "Membatalkan pesanan yang belum berstatus PAID. " +
+                      "Sistem otomatis mengembalikan stok ke gudang via Kafka. " +
+                      "Untuk membatalkan order yang sudah PAID, gunakan endpoint /cancel-after-payment."
+    )
     @PostMapping("/{id}/cancel")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_USER')")
-    public ResponseEntity<?> cancelOrder(@PathVariable Long id) {
+    public ResponseEntity<?> cancelOrder(
+            @Parameter(description = "ID Order yang akan dibatalkan.", example = "1") @PathVariable Long id) {
         Order cancelledOrder = orderService.cancelOrder(id);
-        return ResponseEntity.ok(ApiResponse.success("Order berhasil dibatalkan", cancelledOrder));
+        return ResponseEntity.ok(ApiResponse.success("Pesanan " + cancelledOrder.getOrderNumber() + " berhasil dibatalkan", cancelledOrder));
     }
 
 
-    // Endpoint internal untuk menerima update dari Shipping Service
-    @Operation(summary = "Update Status Pengiriman (Internal)", description = "Sinkronisasi status pesanan berdasarkan laporan dari Shipping Service.")
+    @Operation(
+        summary = "[INTERNAL] Sinkronisasi Status Pengiriman",
+        description = "Endpoint internal — dipanggil oleh Shipping Service untuk memperbarui status order " +
+                      "saat status pengiriman berubah (SHIPPED / DELIVERED). Tidak perlu dipanggil manual."
+    )
     @PutMapping("/{id}/shipping-status")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
-    public ResponseEntity<?> updateShippingStatus(@PathVariable Long id, @RequestParam String status) {
+    public ResponseEntity<?> updateShippingStatus(
+            @Parameter(description = "ID Order.", example = "1") @PathVariable Long id,
+            @Parameter(description = "Status pengiriman dari kurir.", example = "DELIVERED",
+                schema = @io.swagger.v3.oas.annotations.media.Schema(
+                    allowableValues = {"SHIPPED", "DELIVERED"})) @RequestParam String status) {
         orderService.updateOrderStatusFromShipping(id, status);
-        return ResponseEntity.ok(ApiResponse.success("Status order berhasil diupdate dari pengiriman", null));
+        return ResponseEntity.ok(ApiResponse.success("Status pesanan " + id + " otomatis diperbarui berdasarkan informasi pengiriman menjadi " + status, null));
+    }
+
+    // ============================================================
+    // Endpoint untuk membatalkan order yang sudah dalam status PAID.
+    // Sistem otomatis akan:
+    //   1. Mengembalikan stok ke inventory via Kafka
+    //   2. Memproses refund pembayaran ke payment-service via REST
+    //   3. Mengubah status order menjadi CANCELLED
+    // ============================================================
+    @Operation(
+        summary = "Batalkan Order yang Sudah Dibayar (Refund)",
+        description = "Membatalkan order berstatus PAID sebelum dikirim. " +
+                      "Sistem otomatis: (1) Mengembalikan stok ke inventory, " +
+                      "(2) Memproses refund saldo ke customer, " +
+                      "(3) Mengubah status order menjadi CANCELLED. " +
+                      "Proses refund berjalan asinkron via Kafka — cek saldo customer beberapa saat setelah request."
+    )
+    @PatchMapping("/{id}/cancel-after-payment")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_USER')")
+    public ResponseEntity<?> cancelPaidOrder(
+            @Parameter(description = "ID Order berstatus PAID yang akan dibatalkan.", example = "1") @PathVariable Long id) {
+        Order order = orderService.cancelPaidOrder(id);
+        return ResponseEntity.ok(ApiResponse.success(
+                "Pesanan " + order.getOrderNumber() + " berhasil dibatalkan. Proses sinkronisasi refund dan pengembalian stok sedang berlangsung.", order));
     }
 }

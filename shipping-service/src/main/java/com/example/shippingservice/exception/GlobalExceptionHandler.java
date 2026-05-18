@@ -23,4 +23,10 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status)
                 .body(ApiResponse.error(msg));
     }
+
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<?> handleAccessDeniedException(org.springframework.security.access.AccessDeniedException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ApiResponse.error("Forbidden: Anda tidak memiliki izin untuk mengakses resource ini."));
+    }
 }

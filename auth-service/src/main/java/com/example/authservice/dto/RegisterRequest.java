@@ -2,26 +2,40 @@ package com.example.authservice.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+@Schema(
+    name = "RegisterRequest",
+    description = "Body request untuk registrasi akun baru. Untuk mendaftar sebagai ROLE_USER, " +
+                  "gunakan endpoint POST /api/customers (Customer Service) bukan endpoint ini langsung. " +
+                  "Endpoint ini dipakai Customer Service secara internal."
+)
 public class RegisterRequest {
-    @Schema(example = "muhammad_habibi")
+
+    @Schema(description = "Username unik untuk identifikasi akun.", example = "muhammad_habibi", requiredMode = Schema.RequiredMode.REQUIRED)
     private String username;
-    
-    @Schema(example = "password123")
+
+    @Schema(description = "Password akun (akan di-hash sebelum disimpan).", example = "password123", requiredMode = Schema.RequiredMode.REQUIRED)
     private String password;
-    
-    @Schema(example = "user@example.com")
+
+    @Schema(description = "Alamat email unik. Digunakan untuk login.", example = "habibi@example.com", requiredMode = Schema.RequiredMode.REQUIRED)
     private String email;
-    
-    @Schema(example = "Muhammad Habibi")
+
+    @Schema(description = "Nama lengkap pengguna.", example = "Muhammad Habibi")
     private String name;
-    
-    @Schema(example = "Jl. Merdeka No. 10, Jakarta")
+
+    @Schema(description = "Alamat lengkap pengguna.", example = "Jl. Merdeka No. 10, Jakarta")
     private String address;
-    
-    @Schema(example = "ROLE_USER", description = "ROLE_USER atau ROLE_ADMIN")
+
+    @Schema(
+        description = "Role akun: ROLE_USER atau ROLE_ADMIN. Default: ROLE_USER.",
+        example = "ROLE_USER",
+        allowableValues = {"ROLE_USER", "ROLE_ADMIN"}
+    )
     private String role;
-    
-    @Schema(example = "RAHASIA_ADMIN_123", description = "Hanya diisi jika ingin mendaftar sebagai ADMIN")
+
+    @Schema(
+        description = "Kunci rahasia. Wajib diisi jika role = ROLE_ADMIN. Untuk ROLE_USER diisi otomatis oleh Customer Service.",
+        example = "RAHASIA_ADMIN_123"
+    )
     private String adminKey;
 
     // Getters and Setters

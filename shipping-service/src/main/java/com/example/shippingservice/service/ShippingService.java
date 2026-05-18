@@ -3,22 +3,32 @@ package com.example.shippingservice.service;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.example.shippingservice.entity.CourierType; 
+import com.example.shippingservice.entity.CourierType;
 import com.example.shippingservice.entity.Shipment;
 import com.example.shippingservice.repository.ShipmentRepository;
 
 @Service
 public class ShippingService {
 
+    private static final Logger log = LoggerFactory.getLogger(ShippingService.class);
+
     @Autowired
     private ShipmentRepository shipmentRepository;
 
     @Autowired
+    private org.springframework.kafka.core.KafkaTemplate<String, Object> kafkaTemplate;
+
+    @Autowired
     private com.example.shippingservice.security.JwtUtil jwtUtil;
+
+    @Autowired
+    private org.springframework.web.client.RestTemplate restTemplate;
 
     // ========== STATUS CONSTANTS ==========
     public static final String STATUS_PENDING = "PENDING";
@@ -33,33 +43,58 @@ public class ShippingService {
             throw new RuntimeException("Shipment sudah ada untuk Order ID: " + orderId);
         }
 
+        // Dapatkan data order dari Order Service menggunakan System Token
+        java.util.Map<String, Object> orderData;
+        try {
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            headers.set("Authorization", "Bearer " + jwtUtil.generateSystemToken());
+            org.springframework.http.HttpEntity<String> entity = new org.springframework.http.HttpEntity<>(headers);
+
+            String orderUrl = "http://localhost:8084/api/orders/" + orderId;
+            @SuppressWarnings("unchecked")
+            org.springframework.http.ResponseEntity<java.util.Map<String, Object>> orderResponse = restTemplate.exchange(orderUrl, org.springframework.http.HttpMethod.GET, entity,
+                    (Class<java.util.Map<String, Object>>) (Class<?>) java.util.Map.class);
+            
+            orderData = (java.util.Map<String, Object>) orderResponse.getBody().get("data");
+        } catch (Exception e) {
+            throw new RuntimeException("Gagal mengambil data pesanan. Pastikan Order ID " + orderId + " valid. Detail: " + e.getMessage());
+        }
+
+        // VALIDASI KRITIS: Pastikan pesanan sudah dibayar!
+        String orderStatus = (String) orderData.get("status");
+        if (!"PAID".equalsIgnoreCase(orderStatus)) {
+            throw new RuntimeException("Tidak dapat membuat pengiriman! Pesanan belum lunas. Status pesanan saat ini: " + orderStatus);
+        }
+
+        Long customerId = Long.valueOf(orderData.get("customerId").toString());
+
         // Jika data penerima atau alamat kosong, ambil otomatis dari profil Customer
         if (receiverName == null || receiverName.trim().isEmpty() || deliveryAddress == null || deliveryAddress.trim().isEmpty()) {
             try {
-                org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate();
                 org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
                 headers.set("Authorization", "Bearer " + jwtUtil.generateSystemToken());
                 org.springframework.http.HttpEntity<String> entity = new org.springframework.http.HttpEntity<>(headers);
 
-                // 1. Dapatkan customerId dari Order Service
-                String orderUrl = "http://localhost:8084/api/orders/" + orderId;
-                org.springframework.http.ResponseEntity<java.util.Map> orderResponse = restTemplate.exchange(orderUrl, org.springframework.http.HttpMethod.GET, entity, java.util.Map.class);
-                java.util.Map orderData = (java.util.Map) orderResponse.getBody().get("data");
-                Long customerId = Long.valueOf(orderData.get("customerId").toString());
-
                 // 2. Dapatkan Name & Address dari Customer Service
                 String customerUrl = "http://localhost:8083/api/customers/" + customerId;
-                org.springframework.http.ResponseEntity<java.util.Map> customerResponse = restTemplate.exchange(customerUrl, org.springframework.http.HttpMethod.GET, entity, java.util.Map.class);
-                java.util.Map customerData = (java.util.Map) customerResponse.getBody().get("data");
+                @SuppressWarnings("unchecked")
+                org.springframework.http.ResponseEntity<java.util.Map<String, Object>> customerResponse = restTemplate.exchange(customerUrl, org.springframework.http.HttpMethod.GET, entity,
+                        (Class<java.util.Map<String, Object>>) (Class<?>) java.util.Map.class);
+                @SuppressWarnings("unchecked")
+                java.util.Map<String, Object> customerData = (java.util.Map<String, Object>) customerResponse.getBody().get("data");
 
                 if (receiverName == null || receiverName.trim().isEmpty()) {
-                    receiverName = customerData.get("name").toString();
+                    Object nameObj = customerData.get("name");
+                    receiverName = (nameObj != null) ? nameObj.toString() : "Penerima Tidak Diketahui";
                 }
                 if (deliveryAddress == null || deliveryAddress.trim().isEmpty()) {
-                    deliveryAddress = customerData.get("address").toString();
+                    // FIX #6: Null-safe — kolom address di Customer tidak wajib diisi
+                    Object addrObj = customerData.get("address");
+                    deliveryAddress = (addrObj != null && !addrObj.toString().isBlank())
+                        ? addrObj.toString() : "Alamat belum diisi";
                 }
             } catch (Exception e) {
-                System.err.println("Gagal mengambil data profil otomatis: " + e.getMessage());
+                log.warn("[SHIPPING-SERVICE] Gagal ambil profil otomatis | orderId={} | alasan={}", orderId, e.getMessage());
                 if (receiverName == null || deliveryAddress == null) {
                     throw new RuntimeException("Gagal mengambil data profil otomatis dan input manual kosong.");
                 }
@@ -111,22 +146,23 @@ public class ShippingService {
         
         Shipment savedShipment = shipmentRepository.save(shipment);
 
-        // --- MENGHUBUNGI ORDER SERVICE ---
+        // --- MENGHUBUNGI ORDER SERVICE VIA KAFKA (EVENT-DRIVEN) ---
         try {
-            org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate();
-            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
-            headers.set("Authorization", "Bearer " + jwtUtil.generateSystemToken());
-
-            org.springframework.http.HttpEntity<String> entity = new org.springframework.http.HttpEntity<>(headers);
-
-            restTemplate.exchange(
-                "http://localhost:8084/api/orders/" + savedShipment.getOrderId() + "/shipping-status?status=" + newStatus,
-                org.springframework.http.HttpMethod.PUT,
-                entity,
-                String.class
-            );
+            if (STATUS_PICKED_UP.equals(newStatus) || STATUS_IN_TRANSIT.equals(newStatus)) {
+                com.example.saga.event.OrderShippedEvent event = new com.example.saga.event.OrderShippedEvent(
+                    String.valueOf(savedShipment.getOrderId()), savedShipment.getTrackingNumber()
+                );
+                kafkaTemplate.send(com.example.shippingservice.kafka.KafkaTopics.ORDER_SHIPPED, event);
+                log.info("[SHIPPING-SAGA]  ► EVENT : ORDER_SHIPPED         | orderId={} | tracking={}", savedShipment.getOrderId(), savedShipment.getTrackingNumber());
+            } else if (STATUS_DELIVERED.equals(newStatus)) {
+                com.example.saga.event.OrderDeliveredEvent event = new com.example.saga.event.OrderDeliveredEvent(
+                    String.valueOf(savedShipment.getOrderId())
+                );
+                kafkaTemplate.send(com.example.shippingservice.kafka.KafkaTopics.ORDER_DELIVERED, event);
+                log.info("[SHIPPING-SAGA]  ► EVENT : ORDER_DELIVERED       | orderId={}", savedShipment.getOrderId());
+            }
         } catch (Exception e) {
-            System.err.println("PERINGATAN: Gagal mengupdate status order di Order Service untuk Order ID " + savedShipment.getOrderId() + ". Error: " + e.getMessage());
+            log.warn("[SHIPPING-SERVICE] Gagal publish event shipping | orderId={} | alasan={}", savedShipment.getOrderId(), e.getMessage());
         }
 
         return savedShipment;

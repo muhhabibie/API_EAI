@@ -44,7 +44,7 @@ public class ShippingController {
         );
         
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Shipment berhasil dibuat", created));
+                .body(ApiResponse.success("Pengiriman untuk pesanan " + created.getOrderId() + " berhasil diproses dengan nomor resi " + created.getTrackingNumber(), created));
     }
 
     @Operation(summary = "Ambil Semua Pengiriman", description = "Melihat seluruh daftar pengiriman yang ada di sistem. Khusus Admin.")
@@ -59,24 +59,16 @@ public class ShippingController {
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_USER')")
     public ResponseEntity<?> getShipment(@PathVariable Long id) {
-        try {
-            Shipment shipment = shippingService.getShipmentById(id);
-            return ResponseEntity.ok(ApiResponse.success(shipment));
-        } catch (Exception e) {
-            return ResponseEntity.status(404).body(ApiResponse.error(e.getMessage()));
-        }
+        Shipment shipment = shippingService.getShipmentById(id);
+        return ResponseEntity.ok(ApiResponse.success(shipment));
     }
 
     @Operation(summary = "Ambil Pengiriman by Order ID", description = "Mencari informasi pengiriman berdasarkan ID pesanan terkait.")
     @GetMapping("/order/{orderId}")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_USER')")
     public ResponseEntity<?> getShipmentByOrderId(@PathVariable Long orderId) {
-        try {
-            Shipment shipment = shippingService.getShipmentByOrderId(orderId);
-            return ResponseEntity.ok(ApiResponse.success(shipment));
-        } catch (Exception e) {
-            return ResponseEntity.status(404).body(ApiResponse.error(e.getMessage()));
-        }
+        Shipment shipment = shippingService.getShipmentByOrderId(orderId);
+        return ResponseEntity.ok(ApiResponse.success(shipment));
     }
 
     @Operation(summary = "Update Status Pengiriman", description = "Memperbarui status lokasi barang (PICKED_UP, IN_TRANSIT, dll). Khusus Admin.")
@@ -87,6 +79,6 @@ public class ShippingController {
             @io.swagger.v3.oas.annotations.Parameter(description = "Status: PENDING, PICKED_UP, IN_TRANSIT, DELIVERED")
             @RequestParam String status) {
         Shipment updated = shippingService.updateStatus(id, status);
-        return ResponseEntity.ok(ApiResponse.success("Status shipment berhasil diupdate", updated));
+        return ResponseEntity.ok(ApiResponse.success("Status pengiriman dengan resi " + updated.getTrackingNumber() + " berhasil diperbarui menjadi " + updated.getStatus(), updated));
     }
 }

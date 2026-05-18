@@ -1,11 +1,11 @@
 package com.example.authservice.controller;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -13,7 +13,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.client.RestTemplate;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
@@ -39,7 +38,14 @@ public class AuthController {
     @Autowired
     private JwtUtil jwtUtil;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    // FIX #2: Secret dipindah ke application.properties — tidak lagi hardcoded
+    @Value("${auth.admin.secret-key:RAHASIA_ADMIN_123}")
+    private String adminSecretKey;
+
+    // Harus sinkron dengan auth.service.internal-key di customer-service
+    @Value("${auth.service.internal-key:INTERNAL_SYSTEM_KEY_99}")
+    private String internalSystemKey;
+
 
     @Operation(summary = "Login Pengguna", description = "Masuk ke sistem menggunakan email dan password untuk mendapatkan token JWT.")
     @PostMapping("/login")
@@ -58,12 +64,12 @@ public class AuthController {
                 loginData.put("username", customer.getUsername());
                 loginData.put("role", role);
 
-                return ResponseEntity.ok(ApiResponse.success("Login Berhasil!", loginData));
+                return ResponseEntity.ok(ApiResponse.success("Autentikasi berhasil! Selamat datang, " + customer.getUsername(), loginData));
             }
         }
 
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(ApiResponse.error("Email atau password salah"));
+                .body(ApiResponse.error("Kredensial tidak valid. Silakan periksa kembali email dan password Anda."));
     }
 
     @Operation(summary = "Registrasi Pengguna/Admin", description = "Mendaftarkan akun baru ke sistem. Pendaftaran Admin butuh kunci rahasia.")
@@ -73,7 +79,7 @@ public class AuthController {
         
         // Proteksi Admin
         if (roleName.equals("ROLE_ADMIN")) {
-            if (!"RAHASIA_ADMIN_123".equals(request.getAdminKey())) {
+            if (!adminSecretKey.equals(request.getAdminKey())) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(ApiResponse.error("Kunci rahasia Admin salah!"));
             }
@@ -81,8 +87,8 @@ public class AuthController {
         
         // Proteksi User (Harus via Customer Service)
         if (roleName.equals("ROLE_USER")) {
-            String systemKey = (String) request.getAdminKey(); // Kita pinjam field adminKey untuk systemKey
-            if (!"INTERNAL_SYSTEM_KEY_99".equals(systemKey)) {
+            String systemKey = (String) request.getAdminKey();
+            if (!internalSystemKey.equals(systemKey)) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(ApiResponse.error("Pendaftaran User harus melalui Customer Service!"));
             }
@@ -102,7 +108,14 @@ public class AuthController {
 
         customerRepository.save(customer);
 
-        return ResponseEntity.ok(ApiResponse.success("User berhasil didaftarkan sebagai " + roleName, null));
+        java.util.Map<String, String> responseData = new java.util.HashMap<>();
+        responseData.put("username", customer.getUsername());
+        responseData.put("name", customer.getName());
+        responseData.put("email", customer.getEmail());
+        responseData.put("role", customer.getRole());
+
+        String successMsg = "User " + customer.getName() + " (" + customer.getUsername() + ") berhasil didaftarkan sebagai " + roleName;
+        return ResponseEntity.ok(ApiResponse.success(successMsg, responseData));
     }
 
     @Operation(summary = "Dashboard Admin", description = "Endpoint khusus Admin untuk melihat profil dan hak akses.")
@@ -113,6 +126,6 @@ public class AuthController {
         Map<String, Object> data = new HashMap<>();
         data.put("email", auth.getName());
         data.put("authorities", auth.getAuthorities());
-        return ResponseEntity.ok(ApiResponse.success("Selamat datang Admin!", data));
+        return ResponseEntity.ok(ApiResponse.success("Data dashboard berhasil dimuat untuk Admin: " + auth.getName(), data));
     }
 }

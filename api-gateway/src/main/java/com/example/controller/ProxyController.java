@@ -38,11 +38,18 @@ public class ProxyController {
             @RequestBody(required = false) String body) {
         
         try {
-            String requestPath = "/api" + request.getPathInfo();
+            String requestPath = request.getRequestURI();
+
+            // Jangan proxy path milik Swagger UI sendiri (dihandle oleh springdoc)
+            if (requestPath.startsWith("/swagger-ui") || requestPath.startsWith("/v3/api-docs")) {
+                return ResponseEntity.status(404)
+                    .body("{\"error\": \"Path ini adalah lokal Gateway. Gunakan /swagger-ui/index.html\"}" );
+            }
+
             String serviceUrl = serviceRegistry.getServiceUrl(requestPath);
             
             if (serviceUrl == null) {
-                return ResponseEntity.notFound().build();
+                return ResponseEntity.status(404).body("{\"error\": \"API Gateway: No route found for path: " + requestPath + "\"}");
             }
             
             String fullUrl = serviceUrl + requestPath;
@@ -68,6 +75,16 @@ public class ProxyController {
             HttpEntity<?> entity = new HttpEntity<>(body, headers);
             return restTemplate.exchange(fullUrl, method, entity, Object.class);
             
+        } catch (org.springframework.web.client.HttpStatusCodeException e) {
+            org.springframework.http.HttpHeaders errorHeaders = new org.springframework.http.HttpHeaders();
+            if (e.getResponseHeaders() != null && e.getResponseHeaders().getContentType() != null) {
+                errorHeaders.setContentType(e.getResponseHeaders().getContentType());
+            } else {
+                errorHeaders.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+            }
+            return ResponseEntity.status(e.getStatusCode())
+                    .headers(errorHeaders)
+                    .body(e.getResponseBodyAsString());
         } catch (RestClientException e) {
             return ResponseEntity.status(500).body("Service unavailable: " + e.getMessage());
         } catch (Exception e) {

@@ -1,18 +1,31 @@
 package com.example.productservice.controller;
 
 import java.util.List;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import com.example.productservice.dto.ApiResponse;
 import com.example.productservice.dto.ProductRequest;
-import com.example.productservice.entity.Product;
 import com.example.productservice.entity.Category;
+import com.example.productservice.entity.Product;
+import com.example.productservice.repository.CategoryRepository;
+import com.example.productservice.repository.ProductRepository;
 import com.example.productservice.service.ProductService;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
 @CrossOrigin(origins = "*")
@@ -22,6 +35,12 @@ public class ProductController {
 
     @Autowired
     private ProductService productService;
+
+    @Autowired
+    private CategoryRepository categoryRepository;
+
+    @Autowired
+    private ProductRepository productRepository;
 
     @Operation(summary = "Ambil Semua Produk", description = "Melihat seluruh daftar produk yang tersedia di katalog.")
     @GetMapping
@@ -49,13 +68,15 @@ public class ProductController {
         product.setDescription(request.getDescription());
         
         if (request.getCategoryId() != null) {
-            Category category = new Category();
-            category.setId(request.getCategoryId());
+            Category category = categoryRepository.findById(request.getCategoryId())
+                    .orElseThrow(() -> new RuntimeException("Kategori ID " + request.getCategoryId() + " tidak ditemukan"));
             product.setCategory(category);
         }
         
         Product saved = productService.createProduct(product);
-        return ResponseEntity.ok(ApiResponse.success("Produk berhasil ditambahkan", saved));
+        // Re-fetch agar relasi JPA (category.name, dll) ter-load penuh
+        Product responseProduct = productRepository.findById(saved.getId()).orElse(saved);
+        return ResponseEntity.ok(ApiResponse.success("Produk '" + responseProduct.getName() + "' berhasil ditambahkan ke katalog", responseProduct));
     }
 
     @Operation(summary = "Update Data Produk", description = "Memperbarui informasi harga, nama, atau deskripsi produk. Khusus Admin.")
@@ -67,29 +88,37 @@ public class ProductController {
         product.setPrice(request.getPrice());
         product.setStock(request.getStock());
         product.setDescription(request.getDescription());
-        
+
         if (request.getCategoryId() != null) {
-            Category category = new Category();
-            category.setId(request.getCategoryId());
+            Category category = categoryRepository.findById(request.getCategoryId())
+                    .orElseThrow(() -> new RuntimeException("Kategori ID " + request.getCategoryId() + " tidak ditemukan"));
             product.setCategory(category);
         }
-        
+
+        // FIX #8: updateProduct() sekarang throw exception jika ID tidak ada
         Product updated = productService.updateProduct(id, product);
-        return ResponseEntity.ok(ApiResponse.success("Produk berhasil diupdate", updated));
+        // Re-fetch agar relasi JPA (category.name, dll) ter-load penuh
+        Product responseProduct = productRepository.findById(updated.getId()).orElse(updated);
+        return ResponseEntity.ok(ApiResponse.success("Informasi produk '" + responseProduct.getName() + "' berhasil diperbarui", responseProduct));
     }
+
 
     @Operation(summary = "Hapus Produk", description = "Menghapus produk dari katalog secara permanen. Khusus Admin.")
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<?> deleteProduct(@PathVariable Long id) {
-        productService.deleteProduct(id);
-        return ResponseEntity.ok(ApiResponse.success("Produk berhasil dihapus", null));
+        // FIX #7: Cek return value — sebelumnya selalu return 200 meski ID tidak ada
+        if (!productService.deleteProduct(id)) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error("Produk dengan ID " + id + " tidak ditemukan"));
+        }
+        return ResponseEntity.ok(ApiResponse.success("Produk dengan ID " + id + " berhasil dihapus dari sistem", null));
     }
     @Operation(summary = "Penyesuaian Stok Produk", description = "Menambah atau mengurangi stok produk secara manual. Khusus Admin.")
     @PostMapping("/{id}/adjustment")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<?> adjustStock(@PathVariable Long id, @RequestParam int amount) {
         Product updated = productService.adjustStock(id, amount);
-        return ResponseEntity.ok(ApiResponse.success("Stok berhasil disesuaikan", updated));
+        return ResponseEntity.ok(ApiResponse.success("Stok untuk produk '" + updated.getName() + "' berhasil disesuaikan menjadi " + updated.getStock() + " unit", updated));
     }
 }

@@ -4,32 +4,38 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 
+@Schema(
+    name = "CustomerRequest",
+    description = "Body request untuk mendaftarkan customer baru. " +
+                  "Endpoint ini sekaligus mensinkronisasi akun ke Auth Service secara otomatis. " +
+                  "Gunakan email yang sama untuk login via POST /api/login."
+)
 public class CustomerRequest {
-    
+
     @NotBlank(message = "Username tidak boleh kosong")
-    @Schema(example = "muhammad_habibi")
+    @Schema(description = "Username unik untuk identifikasi akun.", example = "muhammad_habibi", requiredMode = Schema.RequiredMode.REQUIRED)
     private String username;
 
     @NotBlank(message = "Nama tidak boleh kosong")
-    @Schema(example = "Muhammad Habibi")
+    @Schema(description = "Nama lengkap customer.", example = "Muhammad Habibi", requiredMode = Schema.RequiredMode.REQUIRED)
     private String name;
 
     @NotBlank(message = "Email tidak boleh kosong")
     @Email(message = "Format email salah")
-    @Schema(example = "user@example.com")
+    @Schema(description = "Email unik. Digunakan sebagai kredensial login di Auth Service.", example = "habibi@example.com", requiredMode = Schema.RequiredMode.REQUIRED)
     private String email;
 
     @NotBlank(message = "Password tidak boleh kosong")
-    @Schema(example = "password123")
+    @Schema(description = "Password akun (minimal 6 karakter).", example = "password123", requiredMode = Schema.RequiredMode.REQUIRED)
     private String password;
 
-    @Schema(example = "Jl. Merdeka No. 10, Jakarta")
+    @Schema(description = "Alamat pengiriman default customer.", example = "Jl. Merdeka No. 10, Jakarta")
     private String address;
 
-    @Schema(example = "500000.0", description = "Saldo awal customer")
+    @Schema(description = "Saldo awal customer dalam Rupiah. Default 0 jika tidak diisi.", example = "500000.0")
     private Double balance;
 
-    @Schema(example = "08123456789", description = "Nomor HP customer")
+    @Schema(description = "Nomor HP aktif customer.", example = "08123456789")
     private String phone;
 
     // Getters and Setters

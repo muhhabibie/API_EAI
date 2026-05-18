@@ -12,7 +12,13 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 @Entity
-@Table(name = "inventory_reservations")
+@Table(
+    name = "inventory_reservations",
+    uniqueConstraints = @jakarta.persistence.UniqueConstraint(
+        name = "uk_reservation_order_product",
+        columnNames = {"order_number", "product_id"}
+    )
+)
 @JsonPropertyOrder({"id", "orderNumber", "productId", "quantity", "status", "createdAt"})
 public class InventoryReservation {
     @Id

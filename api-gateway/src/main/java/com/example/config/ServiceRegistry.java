@@ -19,7 +19,7 @@ public class ServiceRegistry {
      * Route path to service URL mapping
      */
     public String getServiceUrl(String path) {
-        if (path.startsWith("/api/auth") || path.startsWith("/api/login")) {
+        if (path.startsWith("/api/auth") || path.startsWith("/api/login") || path.startsWith("/api/register") || path.startsWith("/api/admin")) {
             return AUTH_SERVICE_URL;
         } else if (path.startsWith("/api/products") || path.startsWith("/api/categories")) {
             return PRODUCT_SERVICE_URL;

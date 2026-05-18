@@ -29,7 +29,7 @@ public class PaymentController {
             request.getMethod()
         );
         
-        return ResponseEntity.ok(ApiResponse.success("Pembayaran berhasil diproses", payment));
+        return ResponseEntity.ok(ApiResponse.success("Pembayaran untuk pesanan " + payment.getOrderId() + " berhasil diproses menggunakan metode " + payment.getPaymentMethod(), payment));
     }
 
     @Operation(summary = "Ambil Semua Riwayat Pembayaran", description = "Hanya dapat diakses oleh Admin untuk melihat seluruh transaksi.")
@@ -46,18 +46,27 @@ public class PaymentController {
         return ResponseEntity.ok(ApiResponse.success(paymentService.getPaymentById(id)));
     }
 
-    @Operation(summary = "Ambil Riwayat Pembayaran by Order ID", description = "Mencari semua riwayat pembayaran yang terkait dengan sebuah Order.")
+    @Operation(summary = "Ambil Riwayat Pembayaran by Order ID",
+            description = "Mencari riwayat pembayaran yang sudah final (SUCCESS/FAILED/REFUNDED) untuk sebuah Order. Record PENDING (masih diproses) tidak ditampilkan.")
     @GetMapping("/order/{orderId}")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_USER')")
     public ResponseEntity<?> getPaymentByOrderId(@PathVariable Long orderId) {
         return ResponseEntity.ok(ApiResponse.success(paymentService.getPaymentByOrderId(orderId)));
     }
 
+    @Operation(summary = "Ambil Semua History Pembayaran by Order ID (Admin)",
+            description = "Mencari SEMUA record pembayaran termasuk PENDING. Digunakan untuk rekonsiliasi atau debugging. Khusus Admin.")
+    @GetMapping("/order/{orderId}/history")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    public ResponseEntity<?> getPaymentHistoryByOrderId(@PathVariable Long orderId) {
+        return ResponseEntity.ok(ApiResponse.success(paymentService.getPaymentHistoryByOrderId(orderId)));
+    }
+
     @Operation(summary = "Update Status Pembayaran", description = "Memperbarui status transaksi (misal: SUCCESS, FAILED, REFUNDED). Khusus Admin.")
     @PutMapping("/{id}/status")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<?> updatePaymentStatus(@PathVariable Long id, @RequestParam String status) {
-        return ResponseEntity.ok(ApiResponse.success("Status pembayaran berhasil diperbarui", paymentService.updateStatus(id, status)));
+        return ResponseEntity.ok(ApiResponse.success("Status transaksi pembayaran " + id + " berhasil diperbarui menjadi " + status, paymentService.updateStatus(id, status)));
     }
 
     @Operation(summary = "Hapus Catatan Pembayaran", description = "Menghapus permanen data pembayaran dari database. Khusus Admin.")
@@ -65,6 +74,21 @@ public class PaymentController {
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<?> deletePayment(@PathVariable Long id) {
         paymentService.deletePayment(id);
-        return ResponseEntity.ok(ApiResponse.success("Catatan pembayaran berhasil dihapus", null));
+        return ResponseEntity.ok(ApiResponse.success("Catatan transaksi pembayaran dengan ID " + id + " berhasil dihapus dari sistem", null));
+    }
+
+    /**
+     * Dipanggil oleh Order Service saat customer/admin membatalkan order PAID.
+     * Mengubah status payment menjadi REFUNDED.
+     */
+    @Operation(summary = "Proses Refund Pembayaran",
+            description = "Mengubah status pembayaran menjadi REFUNDED saat order dibatalkan setelah payment berhasil. "
+                    + "Dipanggil secara internal oleh Order Service.")
+    @PutMapping("/order/{orderId}/refund")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    public ResponseEntity<?> refundByOrderId(@PathVariable Long orderId) {
+        paymentService.refundByOrderId(orderId);
+        return ResponseEntity.ok(ApiResponse.success(
+                "Proses pengembalian dana (refund) untuk pesanan " + orderId + " telah berhasil diselesaikan", null));
     }
 }

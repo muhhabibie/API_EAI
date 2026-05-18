@@ -1,0 +1,373 @@
+{
+  "info": {
+    "_postman_id": "api-eai-gateway-collection",
+    "name": "API EAI - Via Gateway (localhost:8080)",
+    "description": "Collection lengkap untuk testing semua microservice melalui API Gateway. Base URL: http://localhost:8080\n\nUrutan testing:\n1. Login → dapat token\n2. Set token ke variable {{token}}\n3. Gunakan endpoint lainnya",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8080", "type": "string" },
+    { "key": "token", "value": "", "type": "string" },
+    { "key": "customer_id", "value": "1", "type": "string" },
+    { "key": "order_id", "value": "1", "type": "string" },
+    { "key": "product_id", "value": "1", "type": "string" },
+    { "key": "payment_id", "value": "1", "type": "string" },
+    { "key": "shipment_id", "value": "1", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "🔓 1. AUTH (Publik - Tanpa Token)",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.data && json.data.token) {",
+                  "    pm.collectionVariables.set('token', json.data.token);",
+                  "    console.log('Token saved:', json.data.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/login", "host": ["{{base_url}}"], "path": ["api", "login"] }
+          }
+        },
+        {
+          "name": "Register Customer Baru (via Customer Service)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"johndoe\",\n  \"name\": \"John Doe\",\n  \"email\": \"john@example.com\",\n  \"password\": \"password123\",\n  \"address\": \"Jl. Merdeka No. 1, Jakarta\",\n  \"phone\": \"08123456789\",\n  \"balance\": 500000\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/customers", "host": ["{{base_url}}"], "path": ["api", "customers"] }
+          }
+        },
+        {
+          "name": "Get All Products (Publik)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/products", "host": ["{{base_url}}"], "path": ["api", "products"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "👥 2. CUSTOMER SERVICE",
+      "item": [
+        {
+          "name": "Get All Customers (Admin Only)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/api/customers", "host": ["{{base_url}}"], "path": ["api", "customers"] }
+          }
+        },
+        {
+          "name": "Get Customer by ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/api/customers/{{customer_id}}", "host": ["{{base_url}}"], "path": ["api", "customers", "{{customer_id}}"] }
+          }
+        },
+        {
+          "name": "Update Customer",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe Updated\",\n  \"address\": \"Jl. Sudirman No. 5, Jakarta\",\n  \"phone\": \"08198765432\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/customers/{{customer_id}}", "host": ["{{base_url}}"], "path": ["api", "customers", "{{customer_id}}"] }
+          }
+        },
+        {
+          "name": "Potong Saldo Customer",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/customers/{{customer_id}}/deduct-balance?amount=50000",
+              "host": ["{{base_url}}"],
+              "path": ["api", "customers", "{{customer_id}}", "deduct-balance"],
+              "query": [{ "key": "amount", "value": "50000" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📦 3. PRODUCT SERVICE",
+      "item": [
+        {
+          "name": "Get All Products",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/api/products", "host": ["{{base_url}}"], "path": ["api", "products"] }
+          }
+        },
+        {
+          "name": "Get Product by ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/api/products/{{product_id}}", "host": ["{{base_url}}"], "path": ["api", "products", "{{product_id}}"] }
+          }
+        },
+        {
+          "name": "Create Product (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Laptop Gaming\",\n  \"description\": \"Laptop gaming high-end\",\n  \"price\": 15000000,\n  \"stock\": 10,\n  \"category\": \"Electronics\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/products", "host": ["{{base_url}}"], "path": ["api", "products"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🛒 4. ORDER SERVICE",
+      "item": [
+        {
+          "name": "Buat Order Baru",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.data && json.data.id) {",
+                  "    pm.collectionVariables.set('order_id', json.data.id);",
+                  "    console.log('Order ID saved:', json.data.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": {{customer_id}},\n  \"items\": [\n    {\n      \"productId\": 1,\n      \"quantity\": 2\n    }\n  ]\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/orders", "host": ["{{base_url}}"], "path": ["api", "orders"] }
+          }
+        },
+        {
+          "name": "Get All Orders (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/api/orders", "host": ["{{base_url}}"], "path": ["api", "orders"] }
+          }
+        },
+        {
+          "name": "Get Order by ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/api/orders/{{order_id}}", "host": ["{{base_url}}"], "path": ["api", "orders", "{{order_id}}"] }
+          }
+        },
+        {
+          "name": "Get Orders by Customer",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/orders?customerId={{customer_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "orders"],
+              "query": [{ "key": "customerId", "value": "{{customer_id}}" }]
+            }
+          }
+        },
+        {
+          "name": "Cancel Order",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/api/orders/{{order_id}}/cancel", "host": ["{{base_url}}"], "path": ["api", "orders", "{{order_id}}", "cancel"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "💳 5. PAYMENT SERVICE",
+      "item": [
+        {
+          "name": "Proses Pembayaran",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.data && json.data.id) {",
+                  "    pm.collectionVariables.set('payment_id', json.data.id);",
+                  "    console.log('Payment ID saved:', json.data.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": {{order_id}},\n  \"method\": \"TRANSFER\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/payments", "host": ["{{base_url}}"], "path": ["api", "payments"] }
+          }
+        },
+        {
+          "name": "Get All Payments (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/api/payments", "host": ["{{base_url}}"], "path": ["api", "payments"] }
+          }
+        },
+        {
+          "name": "Get Payment by Order ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/payments/order/{{order_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "order", "{{order_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🚚 6. SHIPPING SERVICE",
+      "item": [
+        {
+          "name": "Get Shipment by Order ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/shipments/order/{{order_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "shipments", "order", "{{order_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Get All Shipments (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/api/shipments", "host": ["{{base_url}}"], "path": ["api", "shipments"] }
+          }
+        },
+        {
+          "name": "Update Status Shipment → PICKED_UP",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"PICKED_UP\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/shipments/{{shipment_id}}/status", "host": ["{{base_url}}"], "path": ["api", "shipments", "{{shipment_id}}", "status"] }
+          }
+        },
+        {
+          "name": "Update Status Shipment → IN_TRANSIT",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"IN_TRANSIT\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/shipments/{{shipment_id}}/status", "host": ["{{base_url}}"], "path": ["api", "shipments", "{{shipment_id}}", "status"] }
+          }
+        },
+        {
+          "name": "Update Status Shipment → DELIVERED",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"DELIVERED\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/shipments/{{shipment_id}}/status", "host": ["{{base_url}}"], "path": ["api", "shipments", "{{shipment_id}}", "status"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📊 7. INVENTORY SERVICE",
+      "item": [
+        {
+          "name": "Get All Inventory",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/api/inventory", "host": ["{{base_url}}"], "path": ["api", "inventory"] }
+          }
+        },
+        {
+          "name": "Get Inventory by Product ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/api/inventory/product/{{product_id}}", "host": ["{{base_url}}"], "path": ["api", "inventory", "product", "{{product_id}}"] }
+          }
+        }
+      ]
+    }
+  ]
+}

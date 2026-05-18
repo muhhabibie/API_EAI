@@ -6,7 +6,7 @@ public class PaymentRequest {
     @Schema(example = "1", description = "ID dari Order yang akan dibayar")
     private Long orderId;
     
-    @Schema(example = "VA_MANDIRI", description = "Metode pembayaran (misal: VA_MANDIRI, E_WALLET, dll)")
+    @Schema(example = "BALANCE", description = "Metode pembayaran. (Misal: BALANCE, VA_MANDIRI, VA_BCA, GOPAY, OVO, CREDIT_CARD). Catatan: Saat ini semua metode akan memotong saldo Customer secara simulasi.")
     private String method;
 
     @Schema(example = "REF-12345", description = "Nomor referensi unik dari client untuk mencegah pembayaran ganda (Idempotency)")

@@ -20,6 +20,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.example.inventoryservice.dto.ApiResponse;
 import com.example.inventoryservice.entity.InventoryReservation;
+import com.example.inventoryservice.repository.InventoryReservationRepository;
 import com.example.inventoryservice.service.InventoryService;
 
 @RestController
@@ -30,6 +31,9 @@ public class InventoryController {
 
     @Autowired
     private InventoryService inventoryService;
+
+    @Autowired
+    private InventoryReservationRepository reservationRepository;
 
     // Hanya ADMIN bisa lihat semua reservasi
     @Operation(summary = "Ambil Semua Reservasi", description = "Melihat daftar seluruh stok barang yang sedang dikunci/direservasi oleh sistem. Khusus Admin.")
@@ -51,7 +55,7 @@ public class InventoryController {
         
         InventoryReservation reservation = inventoryService.reserveStock(orderNumber, productId, quantity);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Reservasi stok berhasil dibuat", reservation));
+                .body(ApiResponse.success("Reservasi stok berhasil dilakukan untuk pesanan " + reservation.getOrderNumber(), reservation));
     }
 
     // Hanya ADMIN bisa hapus reservasi
@@ -59,7 +63,10 @@ public class InventoryController {
     @DeleteMapping("/reservations/{reservationId}")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<?> releaseReservation(@PathVariable Long reservationId) {
-        inventoryService.releaseReservation(reservationId);
-        return ResponseEntity.ok(ApiResponse.success("Reservasi berhasil dilepas", null));
+        // FIX #1: releaseReservation(Long) sudah dihapus — lookup orderNumber dulu, lalu delegate
+        InventoryReservation reservation = reservationRepository.findById(reservationId)
+            .orElseThrow(() -> new RuntimeException("Reservasi ID " + reservationId + " tidak ditemukan"));
+        inventoryService.releaseReservationByOrderNumber(reservation.getOrderNumber());
+        return ResponseEntity.ok(ApiResponse.success("Reservasi stok untuk pesanan " + reservation.getOrderNumber() + " berhasil dilepas dan dikembalikan ke gudang", null));
     }
 }

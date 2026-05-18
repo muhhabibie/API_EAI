@@ -1,5 +1,6 @@
 package com.example.filter;
 
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import jakarta.servlet.FilterChain;
@@ -33,7 +34,8 @@ public class JwtGatewayFilter extends OncePerRequestFilter {
         }
 
         // 2. Lewati endpoint publik (Login, Register Auth, dll)
-        if (path.startsWith("/api/auth") || path.startsWith("/api/login") || path.contains("swagger-ui") || path.contains("api-docs")) {
+        if (path.startsWith("/api/auth") || path.startsWith("/api/login") || path.startsWith("/api/register")
+                || path.contains("swagger-ui") || path.contains("api-docs")) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -56,8 +58,9 @@ public class JwtGatewayFilter extends OncePerRequestFilter {
 
         if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write("{\"error\": \"API Gateway: JWT Token is missing or invalid format.\"}");
             response.setContentType("application/json");
+            response.setCharacterEncoding("UTF-8");
+            response.getWriter().write("{\"status\": \"error\", \"message\": \"Unauthorized: JWT Token tidak ditemukan atau format tidak valid.\", \"data\": null}");
             return;
         }
 
@@ -70,10 +73,16 @@ public class JwtGatewayFilter extends OncePerRequestFilter {
             
             // Jika sukses, teruskan request ke ProxyController
             filterChain.doFilter(request, response);
-        } catch (Exception e) {
+        } catch (JwtException e) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write("{\"error\": \"API Gateway: Invalid or Expired JWT Token.\"}");
             response.setContentType("application/json");
+            response.setCharacterEncoding("UTF-8");
+            response.getWriter().write("{\"status\": \"error\", \"message\": \"Unauthorized: JWT Token tidak valid atau sudah kadaluarsa.\", \"data\": null}");
+        } catch (Exception e) {
+            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            response.setContentType("application/json");
+            response.setCharacterEncoding("UTF-8");
+            response.getWriter().write("{\"status\": \"error\", \"message\": \"Internal Server Error: Terjadi kesalahan pada API Gateway.\", \"data\": null}");
         }
     }
 }
