@@ -1,5 +1,8 @@
 package com.example.orderservice.config;
 
+import org.springframework.amqp.core.Binding; // Tambahkan ini
+import org.springframework.amqp.core.BindingBuilder;
+import org.springframework.amqp.core.Queue; // Tambahkan ini
 import org.springframework.amqp.core.TopicExchange;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
