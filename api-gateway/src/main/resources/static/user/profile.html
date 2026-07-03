@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Akun Saya - IFS.indonesian</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Urbanist', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            DEFAULT: '#fd6700',
+                            light: '#ff8a33',
+                            dark: '#cb3600',
+                            surface: '#fff1e6'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .custom-shadow {
+            box-shadow: 0 10px 30px -10px rgba(253, 103, 0, 0.06);
+        }
+        .active-tab {
+            background-color: #fd6700;
+            color: white;
+            box-shadow: 0 4px 15px -3px rgba(253, 103, 0, 0.3);
+        }
+        .inactive-tab {
+            color: #4b5563;
+            background-color: transparent;
+        }
+        .inactive-tab:hover {
+            background-color: #f3f4f6;
+            color: #fd6700;
+        }
+        /* No scrollbar utility */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 antialiased font-sans min-h-screen flex flex-col">
+
+    <!-- Navbar -->
+    <nav class="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-100 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-20">
+                <div class="flex items-center gap-2 cursor-pointer" onclick="window.location.href='index.html'">
+                    <div class="w-8 h-8 bg-brand rounded-full flex items-center justify-center text-white font-black text-lg">Q</div>
+                    <span class="font-black text-xl tracking-tight">IFS<span class="text-brand">.indonesian</span></span>
+                </div>
+                
+                <div class="flex items-center gap-4">
+                    <a id="adminPortalBtn" href="/admin/index.html" class="hidden bg-slate-900 text-white text-[10px] font-black px-3.5 py-2 rounded-full hover:bg-slate-800 transition-all flex items-center gap-1.5 shadow-sm uppercase tracking-wider">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3 h-3">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75" />
+                        </svg>
+                        Admin Portal
+                    </a>
+                    
+                    <button onclick="window.location.href='index.html'" class="text-sm font-bold text-gray-500 hover:text-brand transition flex items-center gap-1.5">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                        </svg>
+                        Ke Halaman Utama
+                    </button>
+                    
+                    <button id="logoutBtn" class="bg-red-50 text-red-500 hover:bg-red-100 px-4 py-2 rounded-full font-bold text-xs transition">
+                        Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            
+            <!-- Sidebar Panel: Left Column -->
+            <div class="lg:col-span-4 space-y-6">
+                <!-- User Profile Summary -->
+                <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm custom-shadow text-center">
+                    <div class="relative w-24 h-24 bg-brand-surface rounded-full flex items-center justify-center text-brand font-black text-4xl mx-auto mb-4 border border-brand/10">
+                        <span id="profileAvatarInitial">U</span>
+                    </div>
+                    <h3 id="profileName" class="text-lg font-black text-gray-800">Nama Pengguna</h3>
+                    <p id="profileEmail" class="text-xs text-gray-400 font-bold mt-1">user@example.com</p>
+                    
+                    <!-- Join Badge -->
+                    <div class="inline-block bg-gray-50 text-gray-500 border rounded-full px-3.5 py-1 text-[10px] font-bold mt-3">
+                        Member Terverifikasi
+                    </div>
+                </div>
+
+                <!-- Balance / Wallet Box -->
+                <div class="bg-gradient-to-br from-brand to-[#ff8a33] text-white rounded-3xl p-6 shadow-lg shadow-brand/20 relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-8 -mt-8 pointer-events-none"></div>
+                    <div class="relative z-10 flex flex-col justify-between">
+                        <div>
+                            <p class="text-xs text-white/80 font-bold uppercase tracking-wider mb-1">Dompet Digital IFS Pay</p>
+                            <h3 id="sidebarBalance" class="text-2xl font-black">Rp 0</h3>
+                        </div>
+                        <button onclick="switchTab('wallet')" class="bg-white/20 hover:bg-white/30 text-white font-bold text-xs py-2 px-4 rounded-xl mt-6 transition backdrop-blur-sm">
+                            Top Up & Riwayat ➔
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Sidebar Tab Menu -->
+                <div class="bg-white rounded-3xl p-4 border border-gray-100 shadow-sm custom-shadow space-y-1">
+                    <button onclick="switchTab('orders')" id="tab_orders" class="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl font-bold text-sm transition-all duration-200 active-tab">
+                        <span>📦</span>
+                        <span>Pesanan Saya</span>
+                    </button>
+                    
+                    <button onclick="switchTab('wallet')" id="tab_wallet" class="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl font-bold text-sm transition-all duration-200 inactive-tab">
+                        <span>💳</span>
+                        <span>Dompet & Top Up</span>
+                    </button>
+                    
+                    <button onclick="switchTab('settings')" id="tab_settings" class="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl font-bold text-sm transition-all duration-200 inactive-tab">
+                        <span>⚙️</span>
+                        <span>Edit Profil</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Content Area: Right Column -->
+            <div class="lg:col-span-8">
+                <!-- 1. Orders Tab Panel -->
+                <div id="panel_orders" class="space-y-6">
+                    <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm custom-shadow flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                            <h2 class="text-xl font-black text-gray-800">Riwayat Pesanan</h2>
+                            <p class="text-xs text-gray-400 font-bold mt-1">Pantau, lacak, dan kelola semua pesanan kamu di sini.</p>
+                        </div>
+                        
+                        <!-- Order Filters -->
+                        <div class="flex gap-1.5 overflow-x-auto no-scrollbar pb-1 -mx-2 px-2">
+                            <button onclick="filterOrders('SEMUA', this)" class="order-filter-btn px-3 py-1.5 rounded-full text-xs font-bold bg-brand text-white transition-all shadow-sm">Semua</button>
+                            <button onclick="filterOrders('AWAITING_PAYMENT', this)" class="order-filter-btn px-3 py-1.5 rounded-full text-xs font-bold bg-gray-100 text-gray-500 hover:bg-gray-200 transition-all">Belum Bayar</button>
+                            <button onclick="filterOrders('PAID', this)" class="order-filter-btn px-3 py-1.5 rounded-full text-xs font-bold bg-gray-100 text-gray-500 hover:bg-gray-200 transition-all">Diproses</button>
+                            <button onclick="filterOrders('SHIPPED', this)" class="order-filter-btn px-3 py-1.5 rounded-full text-xs font-bold bg-gray-100 text-gray-500 hover:bg-gray-200 transition-all">Dikirim</button>
+                        </div>
+                    </div>
+
+                    <!-- Orders Container List -->
+                    <div id="ordersListContainer" class="space-y-4">
+                        <!-- Skeleton loading -->
+                        <div class="animate-pulse bg-white border border-gray-100 p-6 rounded-3xl space-y-4">
+                            <div class="flex justify-between">
+                                <div class="h-4 bg-gray-200 rounded w-1/4"></div>
+                                <div class="h-4 bg-gray-200 rounded w-1/6"></div>
+                            </div>
+                            <div class="h-10 bg-gray-100 rounded"></div>
+                            <div class="h-4 bg-gray-200 rounded w-1/2"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Wallet & Top-up Tab Panel -->
+                <div id="panel_wallet" class="hidden space-y-6">
+                    <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm custom-shadow">
+                        <h2 class="text-xl font-black text-gray-800">Dompet Digital</h2>
+                        <p class="text-xs text-gray-400 font-bold mt-1">Kelola saldo belanja dan isi ulang dompet instan digital kamu.</p>
+
+                        <!-- Top Up Form Container -->
+                        <div class="bg-gray-50 border border-gray-100 rounded-2xl p-5 mt-6">
+                            <h3 class="font-black text-gray-700 text-sm mb-2">Isi Ulang Saldo</h3>
+                            <p class="text-xs text-gray-400 mb-4 font-semibold">Saldo dapat langsung dipakai untuk melakukan pembayaran pesanan secara aman.</p>
+                            
+                            <div class="flex gap-3 mb-4">
+                                <input type="number" id="topupInput" placeholder="Masukkan jumlah isi saldo (cth: 100000)" class="flex-grow p-3 border border-gray-200 rounded-xl focus:outline-none focus:border-brand font-bold text-sm bg-white">
+                                <button id="topupActionBtn" class="bg-brand text-white font-black px-6 py-3 rounded-xl hover:bg-brand-dark transition text-sm flex items-center gap-2">
+                                    <span class="spinner hidden w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                    Isi Saldo
+                                </button>
+                            </div>
+
+                            <!-- Presets -->
+                            <div class="flex flex-wrap gap-2">
+                                <button onclick="setTopupAmount(25000)" class="text-xs bg-white text-gray-600 font-bold px-4 py-2 rounded-lg border hover:border-brand hover:text-brand transition">+Rp 25.000</button>
+                                <button onclick="setTopupAmount(50000)" class="text-xs bg-white text-gray-600 font-bold px-4 py-2 rounded-lg border hover:border-brand hover:text-brand transition">+Rp 50.000</button>
+                                <button onclick="setTopupAmount(100000)" class="text-xs bg-white text-gray-600 font-bold px-4 py-2 rounded-lg border hover:border-brand hover:text-brand transition">+Rp 100.000</button>
+                                <button onclick="setTopupAmount(250000)" class="text-xs bg-white text-gray-600 font-bold px-4 py-2 rounded-lg border hover:border-brand hover:text-brand transition">+Rp 250.000</button>
+                            </div>
+                        </div>
+
+                        <!-- Riwayat Transaksi Keuangan -->
+                        <div class="mt-8 border-t pt-6">
+                            <h3 class="font-black text-gray-700 text-sm mb-4">Riwayat Mutasi Dompet</h3>
+                            <div id="walletHistoryContainer" class="space-y-3">
+                                <p class="text-xs text-gray-400 text-center py-4 font-semibold">Memuat riwayat transaksi...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Edit Profile Tab Panel -->
+                <div id="panel_settings" class="hidden space-y-6">
+                    <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm custom-shadow">
+                        <h2 class="text-xl font-black text-gray-800">Edit Profil Akun</h2>
+                        <p class="text-xs text-gray-400 font-bold mt-1">Perbarui detail kontak dan alamat default pengiriman kamu.</p>
+
+                        <!-- Edit Form -->
+                        <div class="space-y-4 mt-6">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Nama Lengkap</label>
+                                <input type="text" id="settingsName" placeholder="Nama Lengkap" class="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:border-brand font-bold text-sm text-gray-700">
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Alamat Email (Subjek Login)</label>
+                                <input type="email" id="settingsEmail" placeholder="Email" disabled class="w-full p-3 border border-gray-200 bg-gray-50 rounded-xl focus:outline-none text-sm font-semibold text-gray-400 cursor-not-allowed">
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Alamat Default Pengiriman</label>
+                                <textarea id="settingsAddress" rows="4" placeholder="Alamat pengiriman lengkap" class="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:border-brand font-semibold text-sm text-gray-700"></textarea>
+                            </div>
+
+                            <div class="pt-4">
+                                <button id="saveProfileBtn" class="bg-brand text-white font-black px-8 py-3.5 rounded-xl hover:bg-brand-dark transition text-sm flex items-center justify-center gap-2">
+                                    <span class="spinner hidden w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                    Simpan Perubahan
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-gray-100 py-8 text-center text-xs font-semibold text-gray-400 mt-12">
+        <p>© 2026 IFS.indonesian - Platform E-Commerce UMKM Indonesia Fresh Supply. Seluruh Hak Cipta Dilindungi.</p>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="js/api.js"></script>
+    <script src="js/profile.js"></script>
+</body>
+</html>

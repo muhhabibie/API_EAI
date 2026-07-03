@@ -32,7 +32,7 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // 1. IZINKAN SEMUA JALUR SWAGGER/OPENAPI
+                        // 1. IZINKAN SEMUA JALUR SWAGGER/OPENAPI & ACTUATOR
                         .requestMatchers(
                                 "/v3/api-docs",
                                 "/v3/api-docs/**",
@@ -40,7 +40,8 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/swagger-resources/**",
                                 "/webjars/**",
-                                "/error")
+                                "/error",
+                                "/actuator/**")
                         .permitAll()
                         // endpoint login, register, dan health bebas token
                         .requestMatchers("/api/login", "/api/register", "/api/public/**").permitAll()

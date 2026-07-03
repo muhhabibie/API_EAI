@@ -17,7 +17,7 @@ import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "orders")
-@JsonPropertyOrder({"id", "orderNumber", "customerId", "status", "totalAmount", "createdAt", "items"})
+@JsonPropertyOrder({"id", "orderNumber", "customerId", "status", "totalAmount", "courierName", "shippingFee", "cancellationReason", "createdAt", "items"})
 public class Order {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -37,6 +37,15 @@ public class Order {
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
+
+    @Column(name = "courier_name")
+    private String courierName;
+
+    @Column(name = "shipping_fee")
+    private Double shippingFee;
+
+    @Column(name = "cancellation_reason")
+    private String cancellationReason;
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> items = new ArrayList<>();
@@ -60,6 +69,12 @@ public class Order {
     public void setTotalAmount(Double totalAmount) { this.totalAmount = totalAmount; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public String getCourierName() { return courierName; }
+    public void setCourierName(String courierName) { this.courierName = courierName; }
+    public Double getShippingFee() { return shippingFee; }
+    public void setShippingFee(Double shippingFee) { this.shippingFee = shippingFee; }
+    public String getCancellationReason() { return cancellationReason; }
+    public void setCancellationReason(String cancellationReason) { this.cancellationReason = cancellationReason; }
     public List<OrderItem> getItems() { return items; }
     public void setItems(List<OrderItem> items) { this.items = items; }
 }

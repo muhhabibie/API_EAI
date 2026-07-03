@@ -23,10 +23,20 @@ public class OrderRequestDTO {
     )
     private List<OrderItemRequest> items;
 
+    @Schema(description = "Nama Kurir yang dipilih.", example = "JNE")
+    private String courierName;
+
+    @Schema(description = "Ongkos Kirim.", example = "15000")
+    private Double shippingFee;
+
     public Long getCustomerId() { return customerId; }
     public void setCustomerId(Long customerId) { this.customerId = customerId; }
     public List<OrderItemRequest> getItems() { return items; }
     public void setItems(List<OrderItemRequest> items) { this.items = items; }
+    public String getCourierName() { return courierName; }
+    public void setCourierName(String courierName) { this.courierName = courierName; }
+    public Double getShippingFee() { return shippingFee; }
+    public void setShippingFee(Double shippingFee) { this.shippingFee = shippingFee; }
 
     @Schema(name = "OrderItemRequest", description = "Detail satu item produk dalam order.")
     public static class OrderItemRequest {

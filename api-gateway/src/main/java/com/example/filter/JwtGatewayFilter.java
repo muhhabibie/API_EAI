@@ -78,7 +78,7 @@ public class JwtGatewayFilter extends OncePerRequestFilter {
             response.setContentType("application/json");
             response.setCharacterEncoding("UTF-8");
             response.getWriter().write("{\"status\": \"error\", \"message\": \"Unauthorized: JWT Token tidak valid atau sudah kadaluarsa.\", \"data\": null}");
-        } catch (Exception e) {
+        } catch (IllegalArgumentException | IOException | ServletException e) {
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
             response.setContentType("application/json");
             response.setCharacterEncoding("UTF-8");

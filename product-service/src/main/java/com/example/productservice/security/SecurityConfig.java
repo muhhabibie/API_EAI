@@ -31,7 +31,7 @@ public class SecurityConfig {
             .sessionManagement(session ->
                     session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                    // 1. IZINKAN SEMUA JALUR SWAGGER/OPENAPI
+                    // 1. IZINKAN SEMUA JALUR SWAGGER/OPENAPI & ACTUATOR
                     .requestMatchers(
                             "/v3/api-docs",
                             "/v3/api-docs/**",
@@ -39,7 +39,8 @@ public class SecurityConfig {
                             "/swagger-ui.html",
                             "/swagger-resources/**",
                             "/webjars/**",
-                            "/error"
+                            "/error",
+                            "/actuator/**"
                     ).permitAll()
                     
                     // 2. GET produk dan kategori bisa diakses publik

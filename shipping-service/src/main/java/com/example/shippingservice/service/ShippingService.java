@@ -36,9 +36,10 @@ public class ShippingService {
     public static final String STATUS_IN_TRANSIT = "IN_TRANSIT";
     public static final String STATUS_DELIVERED = "DELIVERED";
 
-    // ========== CREATE SHIPMENT ==========
     @Transactional
     public Shipment createShipment(Long orderId, CourierType courier, String receiverName, String deliveryAddress, Double shippingFee) {
+        verifyOrderOwnership(orderId);
+
         if (shipmentRepository.findByOrderId(orderId).isPresent()) {
             throw new RuntimeException("Shipment sudah ada untuk Order ID: " + orderId);
         }
@@ -55,8 +56,10 @@ public class ShippingService {
             org.springframework.http.ResponseEntity<java.util.Map<String, Object>> orderResponse = restTemplate.exchange(orderUrl, org.springframework.http.HttpMethod.GET, entity,
                     (Class<java.util.Map<String, Object>>) (Class<?>) java.util.Map.class);
             
-            orderData = (java.util.Map<String, Object>) orderResponse.getBody().get("data");
-        } catch (Exception e) {
+            @SuppressWarnings("unchecked")
+            java.util.Map<String, Object> castedData = (java.util.Map<String, Object>) orderResponse.getBody().get("data");
+            orderData = castedData;
+        } catch (org.springframework.web.client.RestClientException | IllegalArgumentException e) {
             throw new RuntimeException("Gagal mengambil data pesanan. Pastikan Order ID " + orderId + " valid. Detail: " + e.getMessage());
         }
 
@@ -93,7 +96,7 @@ public class ShippingService {
                     deliveryAddress = (addrObj != null && !addrObj.toString().isBlank())
                         ? addrObj.toString() : "Alamat belum diisi";
                 }
-            } catch (Exception e) {
+            } catch (org.springframework.web.client.RestClientException | IllegalArgumentException e) {
                 log.warn("[SHIPPING-SERVICE] Gagal ambil profil otomatis | orderId={} | alasan={}", orderId, e.getMessage());
                 if (receiverName == null || deliveryAddress == null) {
                     throw new RuntimeException("Gagal mengambil data profil otomatis dan input manual kosong.");
@@ -123,17 +126,16 @@ public class ShippingService {
         String currentStatus = shipment.getStatus();
         newStatus = newStatus.toUpperCase();
 
-        // Validasi transisi status
+        // Validasi transisi status (Fleksibel agar Admin bisa melakukan bypass status di UI)
         boolean validTransition = switch (newStatus) {
             case STATUS_PICKED_UP -> STATUS_PENDING.equals(currentStatus);
-            case STATUS_IN_TRANSIT -> STATUS_PICKED_UP.equals(currentStatus);
-            case STATUS_DELIVERED -> STATUS_IN_TRANSIT.equals(currentStatus);
+            case STATUS_IN_TRANSIT -> STATUS_PICKED_UP.equals(currentStatus) || STATUS_PENDING.equals(currentStatus);
+            case STATUS_DELIVERED -> STATUS_IN_TRANSIT.equals(currentStatus) || STATUS_PICKED_UP.equals(currentStatus) || STATUS_PENDING.equals(currentStatus);
             default -> false;
         };
 
         if (!validTransition) {
-            throw new RuntimeException("Transisi status tidak valid: " + currentStatus + " → " + newStatus
-                    + ". Alur yang benar: PENDING → PICKED_UP → IN_TRANSIT → DELIVERED");
+            throw new RuntimeException("Transisi status tidak valid: " + currentStatus + " → " + newStatus);
         }
 
         shipment.setStatus(newStatus);
@@ -170,16 +172,109 @@ public class ShippingService {
 
     // ========== QUERIES ==========
     public Shipment getShipmentByOrderId(Long orderId) {
+        verifyOrderOwnership(orderId);
         return shipmentRepository.findByOrderId(orderId)
                 .orElseThrow(() -> new RuntimeException("Shipment tidak ditemukan untuk order ID: " + orderId));
     }
 
     public Shipment getShipmentById(Long id) {
-        return shipmentRepository.findById(id)
+        Shipment shipment = shipmentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Shipment tidak ditemukan untuk ID: " + id));
+        verifyOrderOwnership(shipment.getOrderId());
+        return shipment;
     }
 
     public java.util.List<Shipment> getAllShipments() {
         return shipmentRepository.findAll();
+    }
+
+    private void verifyOrderOwnership(Long orderId) {
+        org.springframework.security.core.Authentication authentication = 
+            org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        
+        if (authentication != null && authentication.isAuthenticated() && 
+            !"anonymousUser".equals(authentication.getName())) {
+            
+            boolean isAdmin = authentication.getAuthorities().stream()
+                    .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+
+            if (!isAdmin) {
+                Long customerIdFromOrder = getCustomerIdFromOrder(orderId);
+                
+                String currentEmail = authentication.getName();
+                Long currentCustomerId = getCurrentCustomerId(currentEmail);
+
+                if (currentCustomerId == null || !currentCustomerId.equals(customerIdFromOrder)) {
+                    throw new org.springframework.security.access.AccessDeniedException("Anda tidak memiliki izin untuk mengakses/mengubah pengiriman pesanan ini.");
+                }
+            }
+        }
+    }
+
+    private Long getCustomerIdFromOrder(Long orderId) {
+        try {
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            headers.set("Authorization", "Bearer " + jwtUtil.generateSystemToken());
+            org.springframework.http.HttpEntity<String> entity = new org.springframework.http.HttpEntity<>(headers);
+
+            String orderUrl = "http://localhost:8084/api/orders/" + orderId;
+            @SuppressWarnings("unchecked")
+            org.springframework.http.ResponseEntity<java.util.Map<String, Object>> response = restTemplate.exchange(
+                orderUrl,
+                org.springframework.http.HttpMethod.GET,
+                entity,
+                (Class<java.util.Map<String, Object>>) (Class<?>) java.util.Map.class
+            );
+
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                @SuppressWarnings("unchecked")
+                java.util.Map<String, Object> data = (java.util.Map<String, Object>) response.getBody().get("data");
+                if (data != null && data.get("customerId") != null) {
+                    return Long.valueOf(data.get("customerId").toString());
+                }
+            }
+        } catch (org.springframework.web.client.RestClientException | IllegalArgumentException e) {
+            log.error("Gagal mendapatkan customer ID dari order ID: " + orderId, e);
+        }
+        throw new RuntimeException("Gagal mengambil data pesanan. Pastikan Order ID " + orderId + " valid.");
+    }
+
+    private Long getCurrentCustomerId(String email) {
+        try {
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            org.springframework.web.context.request.ServletRequestAttributes requestAttributes =
+                (org.springframework.web.context.request.ServletRequestAttributes)
+                org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
+            if (requestAttributes != null) {
+                String token = requestAttributes.getRequest().getHeader("Authorization");
+                if (token != null) {
+                    headers.set("Authorization", token);
+                }
+            }
+            if (headers.get("Authorization") == null) {
+                headers.set("Authorization", "Bearer " + jwtUtil.generateSystemToken());
+            }
+            org.springframework.http.HttpEntity<String> entity = new org.springframework.http.HttpEntity<>(headers);
+
+            String customerUrl = "http://localhost:8083/api/customers/by-email?email=" + email;
+            @SuppressWarnings("unchecked")
+            org.springframework.http.ResponseEntity<java.util.Map<String, Object>> response = restTemplate.exchange(
+                customerUrl,
+                org.springframework.http.HttpMethod.GET,
+                entity,
+                (Class<java.util.Map<String, Object>>) (Class<?>) java.util.Map.class
+            );
+
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                @SuppressWarnings("unchecked")
+                java.util.Map<String, Object> data = (java.util.Map<String, Object>) response.getBody().get("data");
+                if (data != null && data.get("id") != null) {
+                    return Long.valueOf(data.get("id").toString());
+                }
+            }
+        } catch (org.springframework.web.client.RestClientException | IllegalArgumentException e) {
+            log.error("Gagal mendapatkan customer ID untuk email: " + email, e);
+        }
+        return null;
     }
 }

@@ -11,5 +11,6 @@ public final class KafkaTopics {
     public static final String RELEASE_PRODUCT_RESERVATION = "product.reservation.release";
     public static final String REFUND_PAYMENT = "payment.refund";
     public static final String ORDER_COMPLETED = "order.completed";
-    public static final String ORDER_CANCELLED = "order.cancelled";
+    public static final String ORDER_CANCELLED    = "order.cancelled";
+    public static final String PRODUCT_STOCK_SYNCED = "product.stock.synced";
 }

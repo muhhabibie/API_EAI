@@ -23,6 +23,14 @@ public class CustomerService {
         return customerRepository.findById(id);
     }
 
+    public Optional<Customer> getCustomerByEmail(String email) {
+        return customerRepository.findByEmail(email);
+    }
+
+    public Optional<Customer> getCustomerByUsername(String username) {
+        return customerRepository.findByUsername(username);
+    }
+
     public Customer createCustomer(Customer customer) {
         return customerRepository.save(customer);
     }
@@ -70,5 +78,26 @@ public class CustomerService {
         return customerRepository.findById(customerId)
             .map(Customer::getBalance)
             .orElseThrow(() -> new RuntimeException("Customer tidak ditemukan: " + customerId));
+    }
+
+    /**
+     * Tambah saldo customer secara atomik menggunakan JPQL UPDATE.
+     * Mencegah race condition lost updates jika ada concurrent topup/refund.
+     *
+     * @return saldo baru setelah penambahan
+     * @throws RuntimeException jika customer tidak ditemukan atau amount <= 0
+     */
+    @Transactional
+    public Double addBalanceAtomic(Long customerId, Double amount) {
+        if (amount <= 0) {
+            throw new IllegalArgumentException("Jumlah penambahan saldo harus lebih besar dari 0");
+        }
+        int updated = customerRepository.addBalance(customerId, amount);
+        if (updated == 0) {
+            throw new RuntimeException("Gagal menambahkan saldo. Customer tidak ditemukan: " + customerId);
+        }
+        return customerRepository.findById(customerId)
+            .map(Customer::getBalance)
+            .orElseThrow(() -> new RuntimeException("Customer tidak ditemukan setelah topup: " + customerId));
     }
 }

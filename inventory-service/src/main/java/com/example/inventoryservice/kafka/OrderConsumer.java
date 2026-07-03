@@ -100,8 +100,24 @@ public class OrderConsumer {
 
         log.info("[INVENTORY-SAGA] ► EVENT : PAYMENT_PROCESSED       | orderId={} | trxId={}", event.orderId(), event.reference());
         try {
-            inventoryService.confirmReservationByOrderNumber(event.orderId());
+            // Konfirmasi reservasi: kurangi totalQty + reservedQty di tabel inventory
+            java.util.Map<Long, Integer> confirmedQty = inventoryService.confirmReservationByOrderNumber(event.orderId());
             log.info("[INVENTORY-SAGA] ✓ SUKSES : Reservasi dikonfirmasi | orderId={} | status=COMPLETED", event.orderId());
+
+            // Publish event ke Product Service agar product.stock ikut berkurang
+            for (java.util.Map.Entry<Long, Integer> entry : confirmedQty.entrySet()) {
+                Long productId = entry.getKey();
+
+                // Hitung newStock = totalQty setelah dikurangi (sudah diupdate di DB)
+                com.example.inventoryservice.entity.Inventory inv =
+                        inventoryService.getInventoryByProductId(productId);
+
+                com.example.saga.event.ProductStockSyncedEvent syncEvent =
+                        new com.example.saga.event.ProductStockSyncedEvent(productId, inv.getTotalQty(), "PAYMENT_CONFIRMED");
+                kafkaTemplate.send(KafkaTopics.PRODUCT_STOCK_SYNCED, syncEvent);
+                log.info("[INVENTORY-STOCK] ✓ Publish PRODUCT_STOCK_SYNCED | productId={} | newStock={}", productId, inv.getTotalQty());
+            }
+
         } catch (Exception e) {
             log.error("[INVENTORY-SAGA] ✗ GAGAL  : Konfirmasi reservasi   | orderId={} | alasan={}", event.orderId(), e.getMessage());
         }

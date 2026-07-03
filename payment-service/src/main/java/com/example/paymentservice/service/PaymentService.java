@@ -9,8 +9,6 @@ import org.springframework.http.*;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestTemplate;
-
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -109,6 +107,8 @@ public class PaymentService {
 
     @Transactional
     public Payment processPayment(Long orderId, String method) {
+        verifyOrderOwnership(orderId);
+
         List<Payment> history = paymentRepository.findByOrderId(orderId);
         boolean alreadyPaid = history.stream().anyMatch(p -> "SUCCESS".equals(p.getStatus()));
         if (alreadyPaid) {
@@ -186,8 +186,10 @@ public class PaymentService {
     }
 
     public Payment getPaymentById(Long id) {
-        return paymentRepository.findById(id)
+        Payment payment = paymentRepository.findById(id)
             .orElseThrow(() -> new RuntimeException("Pembayaran dengan ID " + id + " tidak ditemukan"));
+        verifyOrderOwnership(payment.getOrderId());
+        return payment;
     }
 
     /**
@@ -197,6 +199,7 @@ public class PaymentService {
      * Jika hanya ada PENDING, throw exception agar client tahu payment sedang diproses.
      */
     public List<Payment> getPaymentByOrderId(Long orderId) {
+        verifyOrderOwnership(orderId);
         List<Payment> allPayments = paymentRepository.findByOrderId(orderId);
         if (allPayments.isEmpty()) {
             throw new RuntimeException("Riwayat pembayaran untuk Order ID " + orderId + " tidak ditemukan");
@@ -215,6 +218,7 @@ public class PaymentService {
      * Digunakan untuk keperluan admin atau rekonsiliasi.
      */
     public List<Payment> getPaymentHistoryByOrderId(Long orderId) {
+        verifyOrderOwnership(orderId);
         List<Payment> payments = paymentRepository.findByOrderId(orderId);
         if (payments.isEmpty()) {
             throw new RuntimeException("Riwayat pembayaran untuk Order ID " + orderId + " tidak ditemukan");
@@ -288,5 +292,95 @@ public class PaymentService {
             // Throw di sini → Kafka listener retry → DLQ noise yang tidak perlu.
             log.warn("[PAYMENT-SAGA]  ⚠  SKIP   : Tidak ada SUCCESS payment  | orderId={} → tidak ada yang di-refund (expected for safety-net)", orderId);
         }
+    }
+
+    private void verifyOrderOwnership(Long orderId) {
+        org.springframework.security.core.Authentication authentication = 
+            org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        
+        if (authentication != null && authentication.isAuthenticated() && 
+            !"anonymousUser".equals(authentication.getName())) {
+            
+            boolean isAdmin = authentication.getAuthorities().stream()
+                    .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+
+            if (!isAdmin) {
+                Long customerIdFromOrder = getCustomerIdFromOrder(orderId);
+                
+                String currentEmail = authentication.getName();
+                Long currentCustomerId = getCurrentCustomerId(currentEmail);
+
+                if (currentCustomerId == null || !currentCustomerId.equals(customerIdFromOrder)) {
+                    throw new org.springframework.security.access.AccessDeniedException("Anda tidak memiliki izin untuk mengakses/membayar order ini.");
+                }
+            }
+        }
+    }
+
+    private Long getCustomerIdFromOrder(Long orderId) {
+        try {
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            headers.set("Authorization", "Bearer " + jwtUtil.generateSystemToken());
+            org.springframework.http.HttpEntity<String> entity = new org.springframework.http.HttpEntity<>(headers);
+
+            String orderUrl = "http://localhost:8084/api/orders/" + orderId;
+            @SuppressWarnings("unchecked")
+            org.springframework.http.ResponseEntity<java.util.Map<String, Object>> response = restTemplate.exchange(
+                orderUrl,
+                org.springframework.http.HttpMethod.GET,
+                entity,
+                (Class<java.util.Map<String, Object>>) (Class<?>) java.util.Map.class
+            );
+
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                @SuppressWarnings("unchecked")
+                java.util.Map<String, Object> data = (java.util.Map<String, Object>) response.getBody().get("data");
+                if (data != null && data.get("customerId") != null) {
+                    return Long.valueOf(data.get("customerId").toString());
+                }
+            }
+        } catch (Exception e) {
+            log.error("Gagal mendapatkan customer ID dari order ID: " + orderId, e);
+        }
+        throw new RuntimeException("Gagal mengambil data pesanan. Pastikan Order ID " + orderId + " valid.");
+    }
+
+    private Long getCurrentCustomerId(String email) {
+        try {
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            org.springframework.web.context.request.ServletRequestAttributes requestAttributes =
+                (org.springframework.web.context.request.ServletRequestAttributes)
+                org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
+            if (requestAttributes != null) {
+                String token = requestAttributes.getRequest().getHeader("Authorization");
+                if (token != null) {
+                    headers.set("Authorization", token);
+                }
+            }
+            if (headers.get("Authorization") == null) {
+                headers.set("Authorization", "Bearer " + jwtUtil.generateSystemToken());
+            }
+            org.springframework.http.HttpEntity<String> entity = new org.springframework.http.HttpEntity<>(headers);
+
+            String customerUrl = "http://localhost:8083/api/customers/by-email?email=" + email;
+            @SuppressWarnings("unchecked")
+            org.springframework.http.ResponseEntity<java.util.Map<String, Object>> response = restTemplate.exchange(
+                customerUrl,
+                org.springframework.http.HttpMethod.GET,
+                entity,
+                (Class<java.util.Map<String, Object>>) (Class<?>) java.util.Map.class
+            );
+
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                @SuppressWarnings("unchecked")
+                java.util.Map<String, Object> data = (java.util.Map<String, Object>) response.getBody().get("data");
+                if (data != null && data.get("id") != null) {
+                    return Long.valueOf(data.get("id").toString());
+                }
+            }
+        } catch (Exception e) {
+            log.error("Gagal mendapatkan customer ID untuk email: " + email, e);
+        }
+        return null;
     }
 }

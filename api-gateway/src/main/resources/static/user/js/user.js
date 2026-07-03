@@ -199,6 +199,16 @@ function closeCartModal() {
     }
 }
 
+function closeCheckoutDetailModal() {
+    const modal = document.getElementById('checkoutDetailModal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+    fetchOrders();
+}
+
+
 // ==================== LOGIN / REGISTER / LOGOUT ====================
 // ==================== LOGIN / REGISTER / LOGOUT ====================
 
@@ -227,11 +237,19 @@ async function loginUser(email, password) {
         currentCustomerEmail = email;
         localStorage.setItem('loggedInCustomerName', email);
         
+        // Simpan Role User
+        const role = data.data ? data.data.role : data.role;
+        if (role) {
+            localStorage.setItem('loggedInUserRole', role);
+        }
+        
         // 2. Get customer ID dari email
         const customer = await UserAPI.getCustomerByEmail(email);
+        let customerName = email;
         if (customer) {
             currentCustomerId = customer.id;
             localStorage.setItem('loggedInCustomerId', customer.id);
+            customerName = customer.name || email;
         }
         
         // 3. Update tampilan UI Navbar
@@ -241,9 +259,26 @@ async function loginUser(email, password) {
         
         if (navAuthSection) navAuthSection.classList.add('hidden'); 
         if (userInfoDiv && userNameSpan) {
-            userNameSpan.innerText = email; 
+            userNameSpan.innerText = customerName; 
             userInfoDiv.classList.remove('hidden'); 
             userInfoDiv.classList.add('flex');      
+            
+            // Set dynamic initial
+            const avatarDiv = userInfoDiv.querySelector('.w-8.h-8');
+            if (avatarDiv) {
+                avatarDiv.innerText = customerName.charAt(0).toUpperCase();
+            }
+            
+            // Tampilkan tombol Admin Portal jika rolenya ROLE_ADMIN
+            const adminPortalBtn = document.getElementById('adminPortalBtn');
+            const savedRole = localStorage.getItem('loggedInUserRole');
+            if (adminPortalBtn) {
+                if (savedRole === 'ROLE_ADMIN') {
+                    adminPortalBtn.classList.remove('hidden');
+                } else {
+                    adminPortalBtn.classList.add('hidden');
+                }
+            }
         }
         
         hideLoginModal();
@@ -266,6 +301,11 @@ function logout() {
     localStorage.removeItem('token'); 
     localStorage.removeItem('loggedInCustomerId');
     localStorage.removeItem('loggedInCustomerName');
+    localStorage.removeItem('loggedInUserRole');
+    
+    // Sembunyikan tombol Admin Portal
+    const adminPortalBtn = document.getElementById('adminPortalBtn');
+    if (adminPortalBtn) adminPortalBtn.classList.add('hidden');
     
     // 3. Segarkan tampilan keranjang
     updateCartBadge();
@@ -309,7 +349,8 @@ function logout() {
 
 async function registerAndLogin(name, email, address, password) { 
     try {
-        await UserAPI.registerCustomer({ name, email, address, password });
+        const username = email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '_');
+        await UserAPI.registerCustomer({ username, name, email, address, password });
         showNotification(`Berhasil mendaftar! Mengalihkan...`, "success");
         
         // Setelah berhasil daftar, otomatis login dengan email dan password tersebut
@@ -341,13 +382,13 @@ function renderProducts(products) {
     
     grid.innerHTML = products.map(prod => `
         <div class="group border border-gray-100 rounded-3xl p-4 hover:shadow-xl hover:border-brand/30 transition duration-300 bg-white flex flex-col h-full">
-            <div class="relative w-full h-40 rounded-2xl overflow-hidden mb-4 bg-gray-100">
-                <img src="https://picsum.photos/id/${prod.id}/200/200" alt="${prod.name}" class="w-full h-full object-cover group-hover:scale-110 transition duration-500">
-                <div class="absolute top-2 right-2 bg-white/90 backdrop-blur text-xs font-bold px-2 py-1 rounded-lg">⭐ 4.8</div>
+            <div class="relative w-full h-40 rounded-2xl overflow-hidden mb-4 bg-gray-100 cursor-pointer" onclick="window.location.href='product-detail.html?id=${prod.id}'">
+                <img src="${prod.imageUrl || 'https://picsum.photos/id/' + (prod.id + 10) + '/400/400'}" alt="${prod.name}" class="w-full h-full object-cover group-hover:scale-110 transition duration-500">
+                ${prod.stock <= 5 ? `<div class="absolute top-2 right-2 bg-red-500 text-white text-[9px] font-black px-2 py-0.5 rounded-lg">Stok Tipis</div>` : ''}
             </div>
             <div class="flex flex-col flex-grow">
                 <p class="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">${prod.category ? prod.category.name : 'General'}</p>
-                <h4 class="font-black text-gray-800 text-sm mb-2 line-clamp-2">${prod.name}</h4>
+                <h4 class="font-black text-gray-800 text-sm mb-2 line-clamp-2 cursor-pointer hover:text-brand transition" onclick="window.location.href='product-detail.html?id=${prod.id}'">${prod.name}</h4>
                 <div class="mt-auto flex items-end justify-between">
                     <span class="font-black text-brand text-lg">${formatRupiah(prod.price)}</span>
                     <button onclick="addToCart(${prod.id}, '${prod.name.replace(/'/g, "\\'")}', ${prod.price})" class="w-8 h-8 bg-brand-surface text-brand rounded-full flex justify-center items-center hover:bg-brand hover:text-white transition font-bold">+</button>
@@ -358,13 +399,24 @@ function renderProducts(products) {
 }
 
 // ==================== ORDER HISTORY ====================
+// Cache produk agar tidak fetch berulang kali
+let _productMapCache = null;
+
 async function fetchOrders() {
     const email = localStorage.getItem('loggedInCustomerName');
     if (!email) return;
     try {
-        // Get all orders (atau dengan customerId jika tersedia)
-        const allOrders = await UserAPI.getOrders();
-        renderOrders(allOrders || []);
+        // FIX: Fetch orders dan products bersamaan untuk resolusi nama produk
+        const [allOrders, products] = await Promise.all([
+            UserAPI.getOrders(),
+            _productMapCache ? Promise.resolve(null) : UserAPI.getProducts()
+        ]);
+        // Bangun product map jika belum ada
+        if (products) {
+            _productMapCache = {};
+            products.forEach(p => { _productMapCache[p.id] = p; });
+        }
+        renderOrders(allOrders || [], _productMapCache || {});
     } catch (error) {
         console.error("Error fetchOrders:", error);
         const container = document.getElementById('orderHistoryContainer');
@@ -374,7 +426,7 @@ async function fetchOrders() {
     }
 }
 
-async function renderOrders(orders) {
+async function renderOrders(orders, productMap = {}) {
     const container = document.getElementById('orderHistoryContainer');
     if (!container) return;
     if (orders.length === 0) {
@@ -388,10 +440,35 @@ async function renderOrders(orders) {
         try {
             const shipment = await UserAPI.getShipmentByOrder(order.id);
             if (shipment) {
-                shippingHtml = `<div class="text-xs text-blue-600 mt-1">📦 Resi: ${shipment.trackingNumber || 'N/A'} | Status Kirim: ${shipment.status || 'PENDING'}</div>`;
+                shippingHtml = `<div class="text-xs text-blue-600 mt-1">📦 Kurir: ${shipment.courierName || 'JNE'} | Resi: ${shipment.trackingNumber || 'N/A'} | Status Kirim: ${shipment.status || 'PENDING'}</div>`;
+            } else if (order.courierName && (order.status === 'PAID' || order.status === 'PROCESSING' || order.status === 'SHIPPED' || order.status === 'COMPLETED')) {
+                shippingHtml = `<div class="text-xs text-blue-600 mt-1">📦 Kurir: ${order.courierName} | Resi: <span class="text-orange-500 font-bold">Menunggu Penjadwalan Admin</span></div>`;
             }
         } catch (e) {}
         
+        let badgeClass = 'bg-gray-100 text-gray-700';
+        if (order.status === 'PENDING' || order.status === 'AWAITING_PAYMENT') {
+            badgeClass = 'bg-yellow-100 text-yellow-700';
+        } else if (order.status === 'CANCELLED') {
+            badgeClass = 'bg-red-100 text-red-700';
+        } else if (order.status === 'PAID' || order.status === 'PROCESSING') {
+            badgeClass = 'bg-blue-100 text-blue-700';
+        } else if (order.status === 'SHIPPED') {
+            badgeClass = 'bg-indigo-100 text-indigo-700';
+        } else if (order.status === 'COMPLETED' || order.status === 'DELIVERED') {
+            badgeClass = 'bg-green-100 text-green-700';
+        }
+
+        let actionButtons = '';
+        if (order.status === 'PENDING' || order.status === 'AWAITING_PAYMENT') {
+            actionButtons = `
+                <div class="mt-2 flex gap-3 items-center">
+                    <button onclick="payOrder(${order.id})" class="bg-brand text-white text-xs px-3 py-1.5 rounded-lg hover:bg-brand/90 transition font-bold shadow-sm">Bayar Sekarang</button>
+                    <button onclick="cancelOrder(${order.id})" class="text-xs text-red-500 hover:underline">Batalkan Pesanan</button>
+                </div>
+            `;
+
+
         const date = new Date(order.createdAt).toLocaleString('id-ID');
         html += `
             <div class="border rounded-xl p-4 bg-white shadow-sm">
@@ -402,20 +479,36 @@ async function renderOrders(orders) {
                     </div>
                     <div class="text-right">
                         <p class="font-black">${formatRupiah(order.totalAmount || 0)}</p>
-                        <span class="text-xs px-2 py-1 rounded-full ${order.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700' : (order.status === 'CANCELLED' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700')}">
+                        <span class="text-xs px-2 py-1 rounded-full font-bold ${badgeClass}">
                             ${order.status}
                         </span>
                     </div>
                 </div>
                 <div class="mt-2 text-sm">
-                    ${order.items ? order.items.map(item => `<div>${item.product?.name || 'Product'} x${item.quantity}</div>`).join('') : ''}
+                    ${order.items ? order.items.map(item => {
+                        // FIX: Resolusi nama produk dari productMap
+                        const productName = item.product?.name || productMap[item.productId]?.name || `Produk #${item.productId}`;
+                        return `<div>${productName} x${item.quantity}</div>`;
+                    }).join('') : ''}
                 </div>
                 ${shippingHtml}
-                ${order.status === 'PENDING' ? `<button onclick="cancelOrder(${order.id})" class="mt-2 text-xs text-red-500 hover:underline">Batalkan Pesanan</button>` : ''}
+                ${actionButtons}
             </div>
         `;
     }
     container.innerHTML = html;
+}
+
+// ==================== PAY ORDER ====================
+async function payOrder(orderId) {
+    if (!confirm("Proses pembayaran menggunakan Saldo Anda?")) return;
+    try {
+        await UserAPI.payOrder(orderId, "BALANCE");
+        showNotification("Pembayaran berhasil diproses!", "success");
+        fetchOrders();
+    } catch (error) {
+        showNotification(error.message || "Pembayaran gagal", "error");
+    }
 }
 
 // ==================== CANCEL ORDER ====================
@@ -430,35 +523,9 @@ async function cancelOrder(orderId) {
     }
 }
 
-// ==================== CHECKOUT ====================
-async function checkout() {
-    if (!currentCustomerId) {
-        showNotification("Silakan login terlebih dahulu", "error");
-        showLoginModal();
-        return;
-    }
-    const cart = getCart();
-    if (cart.length === 0) {
-        showNotification("Keranjang kosong", "error");
-        return;
-    }
-    
-    const payload = cart.map(item => ({
-        productId: item.productId,
-        quantity: item.quantity,
-        price: item.price
-    }));
-    
-    try {
-        const data = await UserAPI.createOrder(currentCustomerId, payload);
-        showNotification(`Order berhasil! No: ${data.orderNumber || data.id}`, "success");
-        clearCart();
-        closeCartModal();
-        fetchOrders();
-    } catch (error) {
-        showNotification(error.message || "Checkout gagal", "error");
-    }
-}
+
+// Checkout sekarang menggunakan halaman checkout.html yang dedicated
+// Fungsi checkout() lama dihapus — redirect ke checkout.html dilakukan via tombol di cart modal
 
 
 // ==================== INITIALIZATION ====================
@@ -470,6 +537,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const savedName = localStorage.getItem('loggedInCustomerName');
     const savedCustomerId = localStorage.getItem('loggedInCustomerId');
     
+    // Proteksi sesi korup jika ID bukan angka
+    if (savedCustomerId && isNaN(parseInt(savedCustomerId))) {
+        logout();
+        return;
+    }
+    
     const navAuthSection = document.getElementById('navAuthSection');
     const userInfoDiv = document.getElementById('userInfo');
     const userNameSpan = document.getElementById('loggedInUserName');
@@ -480,12 +553,56 @@ document.addEventListener('DOMContentLoaded', () => {
         currentCustomerEmail = savedName;
         if (savedCustomerId) {
             currentCustomerId = parseInt(savedCustomerId);
+            // Fetch customer info dynamically to get profile name & initials
+            UserAPI.getCustomerById(currentCustomerId).then(cust => {
+                if (cust) {
+                    if (userNameSpan) userNameSpan.innerText = cust.name || savedName;
+                    const avatarDiv = userInfoDiv.querySelector('.w-8.h-8');
+                    if (avatarDiv) {
+                        avatarDiv.innerText = (cust.name || savedName).charAt(0).toUpperCase();
+                    }
+                } else {
+                    logout();
+                }
+            }).catch(err => {
+                console.error("Error updating header user details:", err);
+                logout();
+            });
+        } else {
+            // JIKA savedCustomerId TIDAK ADA DI LOCALSTORAGE, AMBIL DARI EMAIL SECARA OTOMATIS
+            UserAPI.getCustomerByEmail(savedName).then(cust => {
+                if (cust) {
+                    currentCustomerId = cust.id;
+                    localStorage.setItem('loggedInCustomerId', cust.id);
+                    if (userNameSpan) userNameSpan.innerText = cust.name || savedName;
+                    const avatarDiv = userInfoDiv.querySelector('.w-8.h-8');
+                    if (avatarDiv) {
+                        avatarDiv.innerText = (cust.name || savedName).charAt(0).toUpperCase();
+                    }
+                } else {
+                    logout();
+                }
+            }).catch(err => {
+                console.error("Error fetching customer by email on init:", err);
+                logout();
+            });
         }
         if (navAuthSection) navAuthSection.classList.add('hidden');
         if (userInfoDiv && userNameSpan) {
             userNameSpan.innerText = savedName;
             userInfoDiv.classList.remove('hidden');
             userInfoDiv.classList.add('flex');
+            
+            // Show admin portal button if logged-in user is an admin
+            const userRole = localStorage.getItem('loggedInUserRole');
+            const adminPortalBtn = document.getElementById('adminPortalBtn');
+            if (adminPortalBtn) {
+                if (userRole === 'ROLE_ADMIN') {
+                    adminPortalBtn.classList.remove('hidden');
+                } else {
+                    adminPortalBtn.classList.add('hidden');
+                }
+            }
         }
         fetchOrders();
     } else {
@@ -510,10 +627,49 @@ document.addEventListener('DOMContentLoaded', () => {
     // Event listeners untuk cart
     const cartIcon = document.getElementById('cartIcon');
     const closeCartModalBtn = document.getElementById('closeCartModal');
-    const checkoutBtn = document.getElementById('checkoutBtn');
     if (cartIcon) cartIcon.addEventListener('click', openCartModal);
     if (closeCartModalBtn) closeCartModalBtn.addEventListener('click', closeCartModal);
-    if (checkoutBtn) checkoutBtn.addEventListener('click', checkout);
+
+    const checkoutBtn = document.getElementById('checkoutBtn');
+    if (checkoutBtn) {
+        checkoutBtn.addEventListener('click', async () => {
+            const token = localStorage.getItem('token');
+            const savedEmail = localStorage.getItem('loggedInCustomerName');
+
+            if (!currentCustomerId && token && savedEmail) {
+                try {
+                    const cust = await UserAPI.getCustomerByEmail(savedEmail);
+                    if (cust) {
+                        currentCustomerId = cust.id;
+                        localStorage.setItem('loggedInCustomerId', cust.id);
+                    } else {
+                        logout();
+                    }
+                } catch (e) {
+                    console.error("Gagal memulihkan customerId pada saat klik checkout:", e);
+                    logout();
+                }
+            }
+
+            if (!currentCustomerId) {
+                showNotification("Silakan login terlebih dahulu", "error");
+                showLoginModal();
+                return;
+            }
+            const cart = getCart();
+            if (cart.length === 0) {
+                showNotification("Keranjang kosong", "error");
+                return;
+            }
+            // Redirect ke halaman checkout khusus
+            window.location.href = 'checkout.html';
+        });
+    }
+
+    // Event listeners untuk checkout detail modal
+    const closeCheckoutDetailModalBtn = document.getElementById('closeCheckoutDetailModal');
+    if (closeCheckoutDetailModalBtn) closeCheckoutDetailModalBtn.addEventListener('click', closeCheckoutDetailModal);
+    // FIX: payLaterBtn dihapus dari HTML, listener lama dibuang
     
     // Login modal tab switching
     const loginTab = document.getElementById('loginTabBtn');
@@ -590,5 +746,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target === modal) closeCartModal();
         const loginModal = document.getElementById('loginModal');
         if (e.target === loginModal) hideLoginModal();
+        const checkoutDetailModal = document.getElementById('checkoutDetailModal');
+        if (e.target === checkoutDetailModal) closeCheckoutDetailModal();
     });
 });

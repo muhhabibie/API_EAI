@@ -3,14 +3,15 @@
  * Menghubungkan ke 6 Backend Microservices (Port 8081-8086)
  */
 
-// Microservices URLs
+// Microservices URLs - Routed through API Gateway (Port 8080)
 const API_BASE = {
-  auth: 'http://localhost:8081/api',
-  product: 'http://localhost:8082/api',
-  customer: 'http://localhost:8083/api',
-  order: 'http://localhost:8084/api',
-  inventory: 'http://localhost:8085/api',
-  shipping: 'http://localhost:8086/api'
+  auth: '/api',
+  product: '/api',
+  customer: '/api',
+  order: '/api',
+  inventory: '/api',
+  shipping: '/api',
+  payment: '/api'
 };
 
 // Get JWT Token dari localStorage
@@ -52,7 +53,7 @@ const UserAPI = {
       }
 
       const data = await response.json();
-      localStorage.setItem('token', data.token);
+      localStorage.setItem('token', data.data ? data.data.token : data.token);
       return data;
     } catch (error) {
       console.error('Login error:', error);
@@ -65,13 +66,60 @@ const UserAPI = {
   // ==========================================
   async getCustomerByEmail(email) {
     try {
-      const response = await fetchWithToken(`${API_BASE.customer}/customers`);
+      const response = await fetchWithToken(`${API_BASE.customer}/customers/by-email?email=${encodeURIComponent(email)}`);
       if (!response.ok) return null;
-      const customers = await response.json();
-      return customers.find(c => c.email === email) || null;
+      const res = await response.json();
+      return res.data || res;
     } catch (error) {
       console.error('Error getCustomerByEmail:', error);
       return null;
+    }
+  },
+
+  async getCustomerById(id) {
+    try {
+      const response = await fetchWithToken(`${API_BASE.customer}/customers/${id}`);
+      if (!response.ok) return null;
+      const res = await response.json();
+      return res.data || res;
+    } catch (error) {
+      console.error('Error getCustomerById:', error);
+      return null;
+    }
+  },
+
+  async addBalance(id, amount) {
+    try {
+      const response = await fetchWithToken(`${API_BASE.customer}/customers/${id}/add-balance?amount=${amount}`, {
+        method: 'PUT'
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Gagal menambahkan saldo');
+      }
+      const res = await response.json();
+      return res.data || res;
+    } catch (error) {
+      console.error('Error addBalance:', error);
+      throw error;
+    }
+  },
+
+  async updateCustomer(id, customerData) {
+    try {
+      const response = await fetchWithToken(`${API_BASE.customer}/customers/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(customerData)
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Gagal memperbarui profil');
+      }
+      const res = await response.json();
+      return res.data || res;
+    } catch (error) {
+      console.error('Error updateCustomer:', error);
+      throw error;
     }
   },
 
@@ -91,7 +139,8 @@ const UserAPI = {
         throw new Error(error.message || 'Registrasi gagal');
       }
 
-      return await response.json();
+      const res = await response.json();
+      return res.data || res;
     } catch (error) {
       console.error('Register error:', error);
       throw error;
@@ -105,7 +154,8 @@ const UserAPI = {
     try {
       const response = await fetchWithToken(`${API_BASE.product}/products`);
       if (!response.ok) throw new Error('Gagal mengambil produk');
-      return await response.json();
+      const res = await response.json();
+      return res.data || res;
     } catch (error) {
       console.error('Error getProducts:', error);
       return [];
@@ -116,7 +166,8 @@ const UserAPI = {
     try {
       const response = await fetchWithToken(`${API_BASE.product}/products/${id}`);
       if (!response.ok) throw new Error('Produk tidak ditemukan');
-      return await response.json();
+      const res = await response.json();
+      return res.data || res;
     } catch (error) {
       console.error('Error getProductById:', error);
       return null;
@@ -126,13 +177,21 @@ const UserAPI = {
   // ==========================================
   // ORDER (Port 8084)
   // ==========================================
-  async createOrder(customerId, items) {
+  async createOrder(customerId, items, courierName, shippingFee) {
     try {
       const response = await fetchWithToken(
-        `${API_BASE.order}/orders?customerId=${customerId}`,
+        `${API_BASE.order}/orders`,
         {
           method: 'POST',
-          body: JSON.stringify(items)
+          body: JSON.stringify({
+            customerId: customerId,
+            courierName: courierName,
+            shippingFee: shippingFee,
+            items: items.map(item => ({
+              productId: item.productId,
+              quantity: item.quantity
+            }))
+          })
         }
       );
 
@@ -141,7 +200,8 @@ const UserAPI = {
         throw new Error(error.message || 'Gagal membuat order');
       }
 
-      return await response.json();
+      const res = await response.json();
+      return res.data || res;
     } catch (error) {
       console.error('Error createOrder:', error);
       throw error;
@@ -156,7 +216,8 @@ const UserAPI = {
       
       const response = await fetchWithToken(url);
       if (!response.ok) throw new Error('Gagal mengambil order');
-      return await response.json();
+      const res = await response.json();
+      return res.data || res;
     } catch (error) {
       console.error('Error getOrders:', error);
       return [];
@@ -167,7 +228,8 @@ const UserAPI = {
     try {
       const response = await fetchWithToken(`${API_BASE.order}/orders/${id}`);
       if (!response.ok) throw new Error('Order tidak ditemukan');
-      return await response.json();
+      const res = await response.json();
+      return res.data || res;
     } catch (error) {
       console.error('Error getOrderById:', error);
       return null;
@@ -186,7 +248,8 @@ const UserAPI = {
         throw new Error(error.message || 'Gagal membatalkan order');
       }
 
-      return await response.json();
+      const res = await response.json();
+      return res.data || res;
     } catch (error) {
       console.error('Error cancelOrder:', error);
       throw error;
@@ -196,6 +259,24 @@ const UserAPI = {
   // ==========================================
   // SHIPPING (Port 8086)
   // ==========================================
+  async createShipment(shipmentData) {
+    try {
+      const response = await fetchWithToken(`${API_BASE.shipping}/shipments`, {
+        method: 'POST',
+        body: JSON.stringify(shipmentData)
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Gagal memproses pengiriman');
+      }
+      const res = await response.json();
+      return res.data || res;
+    } catch (error) {
+      console.error('Error createShipment:', error);
+      throw error;
+    }
+  },
+
   async getShipmentByOrder(orderId) {
     try {
       const response = await fetchWithToken(
@@ -203,10 +284,47 @@ const UserAPI = {
       );
       
       if (!response.ok) return null;
-      return await response.json();
+      const res = await response.json();
+      return res.data || res;
     } catch (error) {
       console.error('Error getShipmentByOrder:', error);
       return null;
     }
-  }
+  },
+
+  // ==========================================
+  // PAYMENT (Port 8087)
+  // ==========================================
+  async payOrder(orderId, method) {
+    try {
+      const response = await fetchWithToken(`${API_BASE.payment}/payments`, {
+        method: 'POST',
+        body: JSON.stringify({ orderId, method })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Pembayaran gagal');
+      }
+
+      const data = await response.json();
+      return data.data || data;
+    } catch (error) {
+      console.error('Error payOrder:', error);
+      throw error;
+    }
+  },
+
+  async getPaymentByOrderId(orderId) {
+    try {
+      const response = await fetchWithToken(`${API_BASE.payment}/payments/order/${orderId}`);
+      if (!response.ok) return null;
+      const res = await response.json();
+      return res.data || res;
+    } catch (error) {
+      console.error('Error getPaymentByOrderId:', error);
+      return null;
+    }
+  },
+
 };

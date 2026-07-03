@@ -3,6 +3,8 @@ package com.example.inventoryservice.controller;
 import java.util.List;
 import java.util.Map;
 
+import com.example.inventoryservice.entity.Inventory;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -34,6 +36,30 @@ public class InventoryController {
 
     @Autowired
     private InventoryReservationRepository reservationRepository;
+
+    // ── Endpoint Inventory Summary (tabel stok baru) ──────────────────────────
+
+    @Operation(summary = "Lihat Semua Stok Inventory",
+               description = "Melihat ringkasan stok seluruh produk di Inventory Service (totalQty, reservedQty, availableQty).")
+    @GetMapping
+    public ResponseEntity<?> getAllInventory() {
+        List<Inventory> inventories = inventoryService.getAllInventory();
+        return ResponseEntity.ok(ApiResponse.success(inventories));
+    }
+
+    @Operation(summary = "Lihat Stok Inventory per Produk",
+               description = "Melihat ringkasan stok satu produk: totalQty (fisik), reservedQty (dikunci order), availableQty (bisa dipesan).")
+    @GetMapping("/{productId}")
+    public ResponseEntity<?> getInventoryByProduct(@PathVariable Long productId) {
+        try {
+            Inventory inv = inventoryService.getInventoryByProductId(productId);
+            return ResponseEntity.ok(ApiResponse.success(inv));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    // ── Endpoint Reservasi ─────────────────────────────────────────────────────
 
     // Hanya ADMIN bisa lihat semua reservasi
     @Operation(summary = "Ambil Semua Reservasi", description = "Melihat daftar seluruh stok barang yang sedang dikunci/direservasi oleh sistem. Khusus Admin.")

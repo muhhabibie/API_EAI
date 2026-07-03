@@ -96,6 +96,9 @@ CREATE TABLE IF NOT EXISTS orders (
     customer_id BIGINT NOT NULL,
     total_amount DECIMAL(19,2) NOT NULL,
     status VARCHAR(50) DEFAULT 'PENDING',
+    courier_name VARCHAR(100),
+    shipping_fee DECIMAL(19,2) DEFAULT 0.00,
+    cancellation_reason VARCHAR(255) NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -113,13 +116,37 @@ CREATE TABLE IF NOT EXISTS order_items (
 USE inventory_db;
 
 CREATE TABLE IF NOT EXISTS inventory_reservations (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id         BIGINT AUTO_INCREMENT PRIMARY KEY,
     product_id BIGINT NOT NULL,
-    quantity INT NOT NULL,
-    order_id BIGINT,
-    status VARCHAR(50) DEFAULT 'RESERVED',
+    quantity   INT NOT NULL,
+    order_id   BIGINT,
+    status     VARCHAR(50) DEFAULT 'RESERVED',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Tabel ringkasan stok per produk (terpisah dari inventory_reservations)
+-- totalQty    = stok fisik (sinkron dengan product.stock)
+-- reservedQty = stok yang sedang dikunci oleh order aktif
+-- availableQty = totalQty - reservedQty (stok yang boleh dipesan)
+CREATE TABLE IF NOT EXISTS inventory (
+    id            BIGINT AUTO_INCREMENT PRIMARY KEY,
+    product_id    BIGINT NOT NULL UNIQUE,
+    total_qty     INT NOT NULL DEFAULT 0,
+    reserved_qty  INT NOT NULL DEFAULT 0,
+    available_qty INT NOT NULL DEFAULT 0,
+    updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Data awal inventory sinkron dengan sample products di product_db
+-- (Bayam=100, Tomat=50, Apel=40, Daging Sapi=20, Ikan Gurame=30, Bawang=60)
+INSERT IGNORE INTO inventory (product_id, total_qty, reserved_qty, available_qty) VALUES
+(1, 100, 0, 100),
+(2, 50,  0, 50),
+(3, 40,  0, 40),
+(4, 20,  0, 20),
+(5, 30,  0, 30),
+(6, 60,  0, 60);
+
 
 -- Use shipping_db
 USE shipping_db;

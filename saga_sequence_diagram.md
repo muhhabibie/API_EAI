@@ -122,47 +122,7 @@ sequenceDiagram
 
 ---
 
-## 3. Compensation Path 2 — Batal Setelah Bayar (Cancel + Refund)
-
-```mermaid
-sequenceDiagram
-    actor Customer
-    participant GW as API Gateway
-    participant OS as Order Service
-    participant IS as Inventory Service
-    participant PS as Payment Service
-    participant CS as Customer Service
-    participant K as Kafka
-
-    Note over Customer,OS: Order sudah PAID (pembayaran berhasil)
-
-    Customer->>GW: PATCH /api/orders/{id}/cancel-after-payment
-    GW->>OS: Forward request
-    OS->>OS: Validasi: status harus PAID
-    OS->>OS: Update Order (status: CANCELLED)
-
-    par Kompensasi Paralel
-        OS->>K: Publish product.reservation.release
-    and
-        OS->>K: Publish payment.refund
-    end
-
-    K-->>IS: Consume RELEASE_RESERVATION
-    IS->>IS: Lepas reservasi stok (status: RELEASED)
-    IS->>IS: Kembalikan stok ke gudang ✅
-
-    K-->>PS: Consume PAYMENT_REFUND
-    PS->>PS: Cari payment record by orderId (status: SUCCESS)
-    PS->>CS: Add balance (kembalikan uang ke dompet Customer)
-    CS-->>PS: Saldo berhasil dikembalikan ✅
-    PS->>PS: Update Payment (status: REFUNDED)
-
-    Note over Customer,CS: ✅ KOMPENSASI SELESAI — Stok kembali + Uang dikembalikan (Refund)
-```
-
----
-
-## 4. Compensation Path 3 — DLQ (Consumer Gagal Proses)
+## 3. Compensation Path 2 — DLQ (Consumer Gagal Proses)
 
 ```mermaid
 sequenceDiagram

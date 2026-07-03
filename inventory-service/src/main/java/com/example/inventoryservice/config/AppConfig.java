@@ -1,18 +1,13 @@
 package com.example.inventoryservice.config;
 
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.client.RestTemplate;
 
+/**
+ * AppConfig - RestTemplate tidak lagi diperlukan karena Inventory Service
+ * tidak lagi melakukan REST call ke Product Service.
+ * Komunikasi antar service kini menggunakan Kafka event (product.stock.synced).
+ */
 @Configuration
 public class AppConfig {
-
-    /**
-     * Singleton RestTemplate — dibuat sekali, dipakai oleh semua service.
-     * Lebih efisien daripada new RestTemplate() setiap method call.
-     */
-    @Bean
-    public RestTemplate restTemplate() {
-        return new RestTemplate();
-    }
+    // Tidak ada bean yang diperlukan
 }

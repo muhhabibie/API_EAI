@@ -50,7 +50,22 @@ public class AuthController {
     @Operation(summary = "Login Pengguna", description = "Masuk ke sistem menggunakan email dan password untuk mendapatkan token JWT.")
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest request) {
+        // Bypass hardcoded admin untuk testing
+        if (("admin".equals(request.getEmail()) || "admin@example.com".equals(request.getEmail())) 
+                && "admin123".equals(request.getPassword())) {
+            String token = jwtUtil.generateToken("admin@example.com", "ROLE_ADMIN");
+            Map<String, String> loginData = new HashMap<>();
+            loginData.put("token", token);
+            loginData.put("email", "admin@example.com");
+            loginData.put("username", "admin");
+            loginData.put("role", "ROLE_ADMIN");
+            return ResponseEntity.ok(ApiResponse.success("Autentikasi berhasil! Selamat datang Admin (Bypass)", loginData));
+        }
+
         Optional<Customer> customerOpt = customerRepository.findByEmail(request.getEmail());
+        if (!customerOpt.isPresent()) {
+            customerOpt = customerRepository.findByUsername(request.getEmail());
+        }
 
         if (customerOpt.isPresent()) {
             Customer customer = customerOpt.get();

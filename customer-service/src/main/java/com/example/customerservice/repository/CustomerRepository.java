@@ -13,6 +13,7 @@ import com.example.customerservice.entity.Customer;
 @Repository
 public interface CustomerRepository extends JpaRepository<Customer, Long> {
     Optional<Customer> findByEmail(String email);
+    Optional<Customer> findByUsername(String username);
 
     /**
      * Potong saldo secara atomik. WHERE balance >= amount memastikan tidak bisa
@@ -22,4 +23,8 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
     @Modifying
     @Query("UPDATE Customer c SET c.balance = c.balance - :amount WHERE c.id = :id AND c.balance >= :amount")
     int deductBalance(@Param("id") Long id, @Param("amount") Double amount);
+
+    @Modifying
+    @Query("UPDATE Customer c SET c.balance = c.balance + :amount WHERE c.id = :id AND :amount > 0")
+    int addBalance(@Param("id") Long id, @Param("amount") Double amount);
 }

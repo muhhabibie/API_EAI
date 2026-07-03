@@ -67,6 +67,20 @@ public class CustomerController {
                         .body(ApiResponse.error("Customer tidak ditemukan")));
     }
 
+    @Operation(summary = "Ambil Customer by Email", description = "Melihat informasi detail profil pelanggan berdasarkan email atau username.")
+    @GetMapping("/by-email")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_USER')")
+    public ResponseEntity<?> getCustomerByEmail(@RequestParam String email) {
+        java.util.Optional<Customer> customerOpt = customerService.getCustomerByEmail(email);
+        if (!customerOpt.isPresent()) {
+            customerOpt = customerService.getCustomerByUsername(email);
+        }
+        return customerOpt
+                .map(customer -> ResponseEntity.ok(ApiResponse.success(customer)))
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ApiResponse.error("Customer tidak ditemukan dengan email atau username: " + email)));
+    }
+
     @Operation(summary = "Daftar Customer Baru", description = "Mendaftarkan profil pelanggan baru dan otomatis tersinkronisasi ke Auth Service.")
     @PostMapping
     public ResponseEntity<?> createCustomer(@RequestBody @Valid CustomerRequest request) {
@@ -147,13 +161,13 @@ public class CustomerController {
     @PutMapping("/{id}/add-balance")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_USER')")
     public ResponseEntity<?> addBalance(@PathVariable Long id, @RequestParam Double amount) {
-        Customer customer = customerService.getCustomerById(id)
-            .orElseThrow(() -> new RuntimeException("Customer tidak ditemukan"));
-        
-        Double currentBalance = customer.getBalance() != null ? customer.getBalance() : 0.0;
-        customer.setBalance(currentBalance + amount);
-        customerService.updateCustomer(id, customer);
-        
-        return ResponseEntity.ok(ApiResponse.success("Topup berhasil. Saldo telah ditambahkan sebesar " + amount + ". Total saldo saat ini: " + customer.getBalance(), customer.getBalance()));
+        try {
+            Double newBalance = customerService.addBalanceAtomic(id, amount);
+            return ResponseEntity.ok(ApiResponse.success("Topup berhasil. Saldo telah ditambahkan sebesar " + amount + ". Total saldo saat ini: " + newBalance, newBalance));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(ApiResponse.error("Gagal menambah saldo: " + e.getMessage()));
+        }
     }
 }

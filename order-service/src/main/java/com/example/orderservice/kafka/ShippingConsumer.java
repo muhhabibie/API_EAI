@@ -34,12 +34,12 @@ public class ShippingConsumer {
         log.info("[ORDER-SAGA]    ► EVENT : ORDER_DELIVERED          | orderId={}", event.orderId());
         try {
             Long orderId = Long.parseLong(event.orderId());
-            orderService.updateStatus(orderId, "DELIVERED");
+            orderService.updateStatus(orderId, "COMPLETED");
             
             // Publish OrderCompletedEvent — menandakan seluruh alur Saga Happy Path berhasil
             orderService.publishOrderCompletedEvent(orderId);
             
-            log.info("[ORDER-SAGA]    ✓ SUKSES : Order diupdate ke DELIVERED | orderId={}", orderId);
+            log.info("[ORDER-SAGA]    ✓ SUKSES : Order diupdate ke COMPLETED | orderId={}", orderId);
         } catch (Exception e) {
             log.error("[ORDER-SAGA]    ✗ GAGAL  : Update DELIVERED         | orderId={} | alasan={}", event.orderId(), e.getMessage());
         }

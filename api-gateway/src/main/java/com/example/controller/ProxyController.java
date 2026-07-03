@@ -52,12 +52,12 @@ public class ProxyController {
                 return ResponseEntity.status(404).body("{\"error\": \"API Gateway: No route found for path: " + requestPath + "\"}");
             }
             
-            String fullUrl = serviceUrl + requestPath;
-            
-            // Add query string if present
+            org.springframework.web.util.UriComponentsBuilder builder = 
+                org.springframework.web.util.UriComponentsBuilder.fromUriString(serviceUrl + requestPath);
             if (request.getQueryString() != null) {
-                fullUrl += "?" + request.getQueryString();
+                builder.query(request.getQueryString());
             }
+            java.net.URI uri = builder.build(true).toUri();
             
             HttpMethod method = HttpMethod.valueOf(request.getMethod());
             HttpHeaders headers = new HttpHeaders();
@@ -73,7 +73,7 @@ public class ProxyController {
             }
             
             HttpEntity<?> entity = new HttpEntity<>(body, headers);
-            return restTemplate.exchange(fullUrl, method, entity, Object.class);
+            return restTemplate.exchange(uri, method, entity, Object.class);
             
         } catch (org.springframework.web.client.HttpStatusCodeException e) {
             org.springframework.http.HttpHeaders errorHeaders = new org.springframework.http.HttpHeaders();

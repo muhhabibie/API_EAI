@@ -26,7 +26,7 @@ public class ShippingController {
 
     @Operation(summary = "Buat Pengiriman Baru", description = "Mendaftarkan pengiriman barang baru untuk sebuah pesanan.")
     @PostMapping
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_USER')")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<?> createShipment(@RequestBody ShipmentRequest request) {
         CourierType courier;
         try {

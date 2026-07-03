@@ -31,7 +31,20 @@ const AdminUI = {
 
     // Fungsi utama untuk merender seluruh halaman
     renderDashboard(customers, products, orders, categories, shipments, reservations) {
+        // Buat lookup maps untuk cross-reference data
+        const customerMap = {};
+        if (customers) customers.forEach(c => { customerMap[c.id] = c; });
+        const productMap = {};
+        if (products) products.forEach(p => { productMap[p.id] = p; });
+        // Simpan ke window agar renderOrderTableOnly bisa pakai juga
+        window._customerMap = customerMap;
+        window._productMap = productMap;
+        const shipmentMap = {};
+        if (shipments) shipments.forEach(s => { shipmentMap[s.orderId] = s; });
+        window._shipmentMap = shipmentMap;
+
         this.renderOrderTableOnly(orders);
+
        // 1. Update Statistik Overview (Dashboard Utama)
         const activeRes = reservations ? reservations.filter(r => r.status === 'ACTIVE').length : 0;
         const pendingShip = shipments ? shipments.filter(s => s.status === 'PENDING' || s.status === 'PROCESSING').length : 0;
@@ -73,48 +86,20 @@ const AdminUI = {
             elFlowPaid.innerText = paidOrders;
             elFlowShip.innerText = shippedOrders; // Sekarang akan otomatis naik!
         }
-
-        // 2. Render Order History
-        const orderBody = document.getElementById('orderTableBody');
-        if (orderBody && orders) {
-            orderBody.innerHTML = orders.map(o => {
-                const itemsList = o.items.map(i => `<span class="text-[9px] bg-slate-100 text-slate-600 px-1 py-0.5 rounded mr-1">${i.product.name} (x${i.quantity})</span>`).join('');
-                
-                return `
-                <tr class="hover:bg-slate-50 transition">
-                    <td class="p-4 font-black text-blue-600">#${o.id}</td>
-                    <td class="p-4 font-mono text-[10px] text-slate-500">${o.orderNumber}<br><span class="text-[9px]">${this.formatDate(o.createdAt)}</span></td>
-                    <td class="p-4">
-                        <div class="font-bold text-xs uppercase">${o.customer ? o.customer.name : 'Unknown'}</div>
-                        <div class="mt-1">${itemsList}</div>
-                    </td>
-                    <td class="p-4 text-right font-black text-xs">${this.formatRupiah(o.totalAmount)}</td>
-                    <td class="p-4 text-center">
-                        <span class="px-2 py-1 rounded text-[9px] font-black uppercase
-                            ${o.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700' : 
-                              o.status === 'PAID' ? 'bg-blue-100 text-blue-700' :
-                              o.status === 'SHIPPED' ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'}">
-                            ${o.status}
-                        </span>
-                        ${o.status === 'PENDING' ? 
-                            `<button onclick="handleApprovePayment(${o.id})" class="block w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white text-[8px] px-2 py-1.5 rounded font-bold shadow-sm transition">APPROVE PAY</button>` : ''
-                        }
-                    </td>
-                </tr>
-            `}).reverse().join('');
-        }
-
+        
         // 3. Render Inventory Reservations
         const liveStockBody = document.getElementById('liveStockBody');
         const adjProductSelect = document.getElementById('adjProductId');
         
-        if (liveStockBody && products) {
-            liveStockBody.innerHTML = products.map(p => `
+        if (liveStockBody && products && products.length > 0) {
+            liveStockBody.innerHTML = products.map(p => {
+                const stock = (p.stock !== null && p.stock !== undefined) ? p.stock : 0;
+                return `
                 <tr class="hover:bg-slate-50 transition">
                     <td class="p-3 font-bold text-slate-700">${p.name}</td>
-                    <td class="p-3 text-center font-black ${p.stock < 5 ? 'text-red-500 bg-red-50' : 'text-slate-800'}">${p.stock}</td>
-                </tr>
-            `).join('');
+                    <td class="p-3 text-center font-black ${stock < 5 ? 'text-red-500 bg-red-50' : 'text-slate-800'}">${stock}</td>
+                </tr>`;
+            }).join('');
             
             // Isi Dropdown
             adjProductSelect.innerHTML = '<option value="">Select Product...</option>' + 
@@ -182,6 +167,11 @@ if (resBody && reservations) {
                                 <span class="font-black uppercase text-slate-700">${s.courierName}</span><br>
                                 <a href="#" onclick="navigate('order-section'); document.getElementById('orderSearch').value = '#${s.orderId}'; filterOrders();" class="text-[9px] text-blue-500 hover:underline font-bold">View Order #${s.orderId}</a>
                             </td>
+                            <td class="p-4 text-[9px] font-medium text-slate-600">
+                                <div class="font-black text-slate-800 uppercase text-[10px]">${s.receiverName || '-'}</div>
+                                <div class="text-slate-500 text-[9px] mt-0.5 line-clamp-2" title="${s.deliveryAddress || ''}">${s.deliveryAddress || '-'}</div>
+                                <div class="text-[9px] font-bold text-slate-700 mt-1">Fee: <span class="font-black">${this.formatRupiah(s.shippingFee || 0)}</span></div>
+                            </td>
                             <td class="p-4 text-[9px] text-slate-500 font-medium">
                                 <div>Shipped: <span class="font-bold text-slate-800">${shippedDate}</span></div>
                                 <div>Delivered: <span class="font-bold text-slate-800">${deliveredDate}</span></div>
@@ -244,7 +234,7 @@ if (resBody && reservations) {
             `).join('');
         }
 
-        this.renderCharts(orders);
+        try { this.renderCharts(orders); } catch(e) { console.warn('renderCharts error (non-fatal):', e); }
     },
 
     renderOrderTableOnly(orders) {
@@ -256,37 +246,75 @@ if (resBody && reservations) {
             return;
         }
 
+        const cm = window._customerMap || {};
+        const pm = window._productMap || {};
+        const sm = window._shipmentMap || {};
+
         orderBody.innerHTML = orders.map(o => {
-            const itemsList = o.items.map(i => `<span class="text-[9px] bg-slate-100 text-slate-600 px-1 py-0.5 rounded mr-1">${i.product.name} (x${i.quantity})</span>`).join('');
+            const customerObj = o.customer || cm[o.customerId];
+            const customerName = customerObj ? customerObj.name : (o.customerId ? `⏳ Memuat...` : 'Unknown');
+            const customerAddress = customerObj ? customerObj.address : '';
+            const shipment = sm[o.id];
+            const shipmentAction = shipment
+                ? `<button onclick="navigate('shipping-section')" class="block w-full mt-2 bg-indigo-600 hover:bg-indigo-700 text-white text-[8px] px-2 py-1.5 rounded font-bold shadow-sm transition">SHIPPING</button>
+                   <span class="block text-[8px] text-green-600 font-bold mt-1 italic">${shipment.trackingNumber || 'Shipment Created'} (${shipment.courierName})</span>`
+                : null;
+            const itemsList = (o.items || []).map(i => {
+                const productObj = i.product || pm[i.productId];
+                const productName = productObj ? productObj.name : ('Produk #' + i.productId);
+                return `<span class="text-[9px] bg-slate-100 text-slate-600 px-1 py-0.5 rounded mr-1">${productName} (x${i.quantity})</span>`;
+            }).join('');
             
             return `
-            <tr class="hover:bg-slate-50 transition">
+            <tr class="hover:bg-slate-50 transition" data-order-id="${o.id}">
                 <td class="p-4 font-black text-blue-600">#${o.id}</td>
                 <td class="p-4 font-mono text-[10px] text-slate-500">${o.orderNumber || '-'}<br><span class="text-[9px]">${this.formatDate(o.createdAt)}</span></td>
                 <td class="p-4">
-                    <div class="font-bold text-xs uppercase">${o.customer ? o.customer.name : 'Unknown'}</div>
+                    <div class="font-bold text-xs uppercase cust-name-${o.customerId}">${customerName}</div>
                     <div class="mt-1">${itemsList}</div>
                 </td>
                 <td class="p-4 text-right font-black text-xs">${this.formatRupiah(o.totalAmount)}</td>
                 <td class="p-4 text-center">
                     <span class="px-2 py-1 rounded text-[9px] font-black uppercase
                         ${o.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700' : 
+                          o.status === 'AWAITING_PAYMENT' ? 'bg-orange-100 text-orange-700 border border-orange-200' :
                           o.status === 'PAID' ? 'bg-blue-100 text-blue-700' :
-                          o.status === 'SHIPPED' ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'}">
+                          o.status === 'CANCELLED' ? 'bg-red-100 text-red-700' :
+                          o.status === 'SHIPPED' || o.status === 'PROCESSING' ? 'bg-indigo-100 text-indigo-700' : 'bg-green-100 text-green-700'}">
                         ${o.status}
                     </span>
                     ${o.status === 'PENDING' ? 
-                        `<button onclick="handleApprovePayment(${o.id})" class="block w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white text-[8px] px-2 py-1.5 rounded font-bold shadow-sm transition">APPROVE PAY</button>` : 
-                      o.status === 'PAID' ? 
-                        `<button onclick="navigate('shipping-section')" class="block w-full mt-2 bg-orange-500 hover:bg-orange-600 text-white text-[8px] px-2 py-1.5 rounded font-bold shadow-sm transition">GO TO SHIPPING</button>` : ''
+                        `<span class="block text-[8px] text-slate-400 font-bold mt-1.5 italic">Reserving Stock...</span>` : 
+                      o.status === 'AWAITING_PAYMENT' ?
+                        `<button onclick="handleCancelOrder(${o.id})" class="block w-full mt-2 bg-red-500 hover:bg-red-600 text-white text-[8px] px-2 py-1.5 rounded font-bold shadow-sm transition">CANCEL</button>` :
+                      o.status === 'PAID' ?
+                        (shipmentAction ?
+                          shipmentAction :
+                          `<button onclick="handleCreateShipment(${o.id}, '${customerName.replace(/'/g, "\\'").replace(/⏳/g, '').replace(/Memuat/g, '').trim()}', '${(customerAddress || '').replace(/'/g, "\\'")}', '${o.courierName || 'JNE'}', ${o.shippingFee || 15000})" class="block w-full mt-2 bg-indigo-600 hover:bg-indigo-700 text-white text-[8px] px-2 py-1.5 rounded font-bold shadow-sm transition">SHIP ORDER</button>
+                           <button onclick="handleCancelPaidOrder(${o.id})" class="block w-full mt-1 bg-red-500 hover:bg-red-600 text-white text-[8px] px-2 py-1.5 rounded font-bold shadow-sm transition">CANCEL &amp; REFUND</button>`
+                        ) : ''
                     }
                 </td>
             </tr>
-        `}).reverse().join('');
+            `;
+        }).reverse().join('');
+
+        // Trigger async lookup for unresolved customer IDs
+        const unresolvedIds = orders
+            .filter(o => !cm[o.customerId] && !o.customer && o.customerId)
+            .map(o => o.customerId);
+        const uniqueIds = [...new Set(unresolvedIds)];
+        if (uniqueIds.length > 0) {
+            this._resolveCustomerNamesAsync(uniqueIds);
+        }
     },
 
     renderCharts(orders) {
         if (!orders || orders.length === 0) return;
+        if (typeof ApexCharts === 'undefined') {
+            console.warn('ApexCharts belum siap, chart dilewati.');
+            return;
+        }
 
         // --- A. Siapkan Data untuk Status Chart (Donut) ---
         const statusCounts = { PENDING: 0, PAID: 0, SHIPPED: 0, COMPLETED: 0 };
@@ -356,5 +384,44 @@ if (resBody && reservations) {
             statusChartInstance.render();
         }
     }
-    
+    ,
+
+    // FIX: Async resolution untuk customer name yang belum ter-resolve di customerMap
+    // Dipanggil setelah render awal jika ada order dengan customerId yang tidak ada di customerMap
+    async _resolveCustomerNamesAsync(customerIds) {
+        for (const custId of customerIds) {
+            try {
+                const res = await fetch(`/api/customers/${custId}`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` }
+                });
+                if (!res.ok) continue;
+                const data = await res.json();
+                const customer = data.data || data;
+                if (!customer || !customer.name) continue;
+                
+                // Update semua elemen DOM yang menunggu nama customer ini
+                document.querySelectorAll(`.cust-name-${custId}`).forEach(el => {
+                    el.innerText = customer.name;
+                });
+                // Simpan ke customerMap cache untuk order yang baru dirender
+                if (window._customerMap) {
+                    window._customerMap[custId] = customer;
+                }
+            } catch (e) {
+                // Fail silently; DOM akan tetap tampilkan Customer #id
+                console.warn(`[CustomerResolve] Gagal fetch customer ${custId}:`, e.message);
+            }
+        }
+    },
+
+    showNotification(message, bgClass = 'bg-slate-800') {
+        const existing = document.getElementById('adminNotif');
+        if (existing) existing.remove();
+        const notif = document.createElement('div');
+        notif.id = 'adminNotif';
+        notif.className = `fixed bottom-6 right-6 z-50 ${bgClass} text-white text-xs font-bold px-5 py-3 rounded-xl shadow-lg transition-all`;
+        notif.innerText = message;
+        document.body.appendChild(notif);
+        setTimeout(() => { if(notif) notif.remove(); }, 4000);
+    }
 };

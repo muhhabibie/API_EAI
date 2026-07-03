@@ -39,10 +39,27 @@ public class OrderService {
     public static final String STATUS_CANCELLED = "CANCELLED";
 
     @Transactional
-    public Order createOrder(Long customerId, List<OrderRequestDTO.OrderItemRequest> itemRequests) {
+    public Order createOrder(Long customerId, List<OrderRequestDTO.OrderItemRequest> itemRequests, String courierName, Double shippingFee) {
         if (customerId == null) {
             throw new RuntimeException("Customer ID tidak boleh kosong");
         }
+
+        // Validasi kepemilikan customerId untuk ROLE_USER
+        org.springframework.security.core.Authentication authentication = 
+            org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.isAuthenticated() && 
+            !"anonymousUser".equals(authentication.getName())) {
+            boolean isAdmin = authentication.getAuthorities().stream()
+                    .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+            if (!isAdmin) {
+                String currentEmail = authentication.getName();
+                Long currentCustomerId = getCurrentCustomerId(currentEmail);
+                if (currentCustomerId == null || !customerId.equals(currentCustomerId)) {
+                    throw new org.springframework.security.access.AccessDeniedException("Anda tidak diperbolehkan membuat pesanan atas nama customer lain.");
+                }
+            }
+        }
+
         if (itemRequests == null || itemRequests.isEmpty()) {
             throw new RuntimeException("Item order tidak boleh kosong");
         }
@@ -51,6 +68,8 @@ public class OrderService {
         order.setCustomerId(customerId);
         order.setOrderNumber("ORD-" + System.currentTimeMillis());
         order.setStatus(STATUS_PENDING);
+        order.setCourierName(courierName);
+        order.setShippingFee(shippingFee);
         order.setCreatedAt(LocalDateTime.now());
 
         double total = 0.0;
@@ -176,15 +195,16 @@ public class OrderService {
         Order order = orderRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Order tidak ditemukan"));
 
+        verifyOrderOwnership(order);
+
         // Idempotency: Jika sudah CANCELLED, return langsung (hindari duplikasi Kafka event)
         if (STATUS_CANCELLED.equals(order.getStatus())) {
             return order;
         }
 
-        // Tidak bisa cancel jika status PAID — gunakan endpoint /cancel-paid agar refund terjadi
+        // Tidak bisa cancel jika status PAID
         if (STATUS_PAID.equals(order.getStatus())) {
-            throw new RuntimeException(
-                "Order sudah PAID. Gunakan endpoint /cancel-paid untuk membatalkan dan mendapat refund.");
+            throw new RuntimeException("Pesanan yang sudah dibayar tidak dapat dibatalkan.");
         }
 
         // Tidak bisa cancel jika sudah dikirim atau selesai
@@ -237,61 +257,57 @@ public class OrderService {
         return savedOrder;
     }
 
-    /**
-     * Membatalkan order yang sudah berstatus PAID.
-     * Digunakan saat customer/admin ingin membatalkan pesanan setelah pembayaran berhasil
-     * namun barang belum dikirim.
-     *
-     * Alur kompensasi yang dijalankan:
-     *   1. Status order diubah ke CANCELLED
-     *   2. Inventory Service diberitahu via Kafka → stok dikembalikan
-     *   3. Payment Service diberitahu via REST → payment di-refund
-     */
     @Transactional
-    public Order cancelPaidOrder(Long id) {
+    public Order cancelPaidOrder(Long id, String reason) {
         Order order = orderRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Order tidak ditemukan"));
 
-        // Hanya boleh cancel jika status PAID (sudah bayar, belum dikirim)
+        // Hanya order PAID yang bisa dibatalkan via jalur ini
         if (!STATUS_PAID.equals(order.getStatus())) {
             throw new RuntimeException(
-                "Pembatalan dengan refund hanya bisa dilakukan pada order berstatus PAID. "
-                + "Status saat ini: " + order.getStatus());
+                "Pembatalan setelah bayar hanya berlaku untuk order PAID. Status saat ini: " + order.getStatus()
+            );
+        }
+
+        if (reason == null || reason.isBlank()) {
+            throw new RuntimeException("Alasan pembatalan wajib diisi.");
         }
 
         order.setStatus(STATUS_CANCELLED);
+        order.setCancellationReason(reason);
         Order savedOrder = orderRepository.save(order);
 
-        // 1. Kembalikan stok ke Inventory Service via Kafka
+        // 1. Kembalikan stok ke gudang
         java.util.List<com.example.saga.event.OrderItemDTO> messageItems = new java.util.ArrayList<>();
         for (OrderItem item : savedOrder.getItems()) {
             messageItems.add(new com.example.saga.event.OrderItemDTO(item.getProductId(), item.getQuantity()));
         }
-        com.example.saga.event.ReleaseProductReservationEvent releaseEvent = new com.example.saga.event.ReleaseProductReservationEvent(
-            String.valueOf(savedOrder.getId()),
-            messageItems,
-            "Customer membatalkan order yang sudah dibayar"
-        );
+        com.example.saga.event.ReleaseProductReservationEvent releaseEvent =
+            new com.example.saga.event.ReleaseProductReservationEvent(
+                String.valueOf(savedOrder.getId()),
+                messageItems,
+                "Pembatalan setelah bayar: " + reason
+            );
         orderProducer.sendOrderCancelled(releaseEvent);
-        log.info("[ORDER-SAGA]    ✓ Kompensasi stok dikirim ke inventory-service | orderNumber={}", savedOrder.getOrderNumber());
 
-        // 2. Proses refund ke Payment Service via Kafka event
-        com.example.saga.event.RefundPaymentEvent refundEvent = new com.example.saga.event.RefundPaymentEvent(
-            String.valueOf(savedOrder.getId()),
-            java.math.BigDecimal.valueOf(savedOrder.getTotalAmount()),
-            "Refund otomatis karena pembatalan pesanan"
-        );
+        // 2. Refund saldo ke customer
+        com.example.saga.event.RefundPaymentEvent refundEvent =
+            new com.example.saga.event.RefundPaymentEvent(
+                String.valueOf(savedOrder.getId()),
+                java.math.BigDecimal.valueOf(savedOrder.getTotalAmount()),
+                "Refund - " + reason
+            );
         orderProducer.sendRefundPayment(refundEvent);
-        log.info("[ORDER-SAGA]    ✓ Refund event dikirim via Kafka              | orderNumber={}", savedOrder.getOrderNumber());
 
-        // Publish OrderCancelledEvent — untuk audit/notifikasi service
+        // 3. Publish OrderCancelledEvent untuk audit
         orderProducer.sendOrderCancelledEvent(
             new com.example.saga.event.OrderCancelledEvent(
                 String.valueOf(savedOrder.getId()),
-                "Customer membatalkan order yang sudah dibayar (refund diproses)"
+                "Pembatalan setelah bayar: " + reason
             )
         );
 
+        log.info("[ORDER-SAGA]    ↩ Cancel+Refund dikirim | orderId={} | alasan={}", savedOrder.getId(), reason);
         return savedOrder;
     }
 
@@ -322,8 +338,98 @@ public class OrderService {
         return orderRepository.findAll();
     }
 
+    public List<Order> getOrdersForCurrentUser(Long customerId) {
+        org.springframework.security.core.Authentication authentication = 
+            org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        
+        if (authentication != null && authentication.isAuthenticated() && 
+            !"anonymousUser".equals(authentication.getName())) {
+            
+            boolean isAdmin = authentication.getAuthorities().stream()
+                    .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+
+            if (isAdmin) {
+                if (customerId != null) {
+                    return getOrdersByCustomer(customerId);
+                } else {
+                    return getAllOrders();
+                }
+            } else {
+                String currentEmail = authentication.getName();
+                Long currentCustomerId = getCurrentCustomerId(currentEmail);
+                if (currentCustomerId == null) {
+                    throw new org.springframework.security.access.AccessDeniedException("Profil customer tidak ditemukan.");
+                }
+                if (customerId != null && !customerId.equals(currentCustomerId)) {
+                    throw new org.springframework.security.access.AccessDeniedException("Anda tidak memiliki izin untuk melihat order customer lain.");
+                }
+                return getOrdersByCustomer(currentCustomerId);
+            }
+        }
+        throw new org.springframework.security.access.AccessDeniedException("User tidak terautentikasi.");
+    }
+
     public Order getOrderById(Long id) {
-        return orderRepository.findById(id).orElseThrow(() -> new RuntimeException("Order tidak ditemukan"));
+        Order order = orderRepository.findById(id).orElseThrow(() -> new RuntimeException("Order tidak ditemukan"));
+        verifyOrderOwnership(order);
+        return order;
+    }
+
+    private void verifyOrderOwnership(Order order) {
+        org.springframework.security.core.Authentication authentication = 
+            org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        
+        if (authentication != null && authentication.isAuthenticated() && 
+            !"anonymousUser".equals(authentication.getName())) {
+            
+            boolean isAdmin = authentication.getAuthorities().stream()
+                    .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+
+            if (!isAdmin) {
+                String currentEmail = authentication.getName();
+                Long currentCustomerId = getCurrentCustomerId(currentEmail);
+
+                if (currentCustomerId == null || !order.getCustomerId().equals(currentCustomerId)) {
+                    throw new org.springframework.security.access.AccessDeniedException("Anda tidak memiliki izin untuk mengakses/mengubah pesanan ini.");
+                }
+            }
+        }
+    }
+
+    private Long getCurrentCustomerId(String email) {
+        try {
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            org.springframework.web.context.request.ServletRequestAttributes requestAttributes =
+                (org.springframework.web.context.request.ServletRequestAttributes)
+                org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
+            if (requestAttributes != null) {
+                String token = requestAttributes.getRequest().getHeader("Authorization");
+                if (token != null) {
+                    headers.set("Authorization", token);
+                }
+            }
+            org.springframework.http.HttpEntity<String> entity = new org.springframework.http.HttpEntity<>(headers);
+
+            String customerUrl = "http://localhost:8083/api/customers/by-email?email=" + email;
+            @SuppressWarnings("unchecked")
+            org.springframework.http.ResponseEntity<java.util.Map<String, Object>> response = restTemplate.exchange(
+                customerUrl,
+                org.springframework.http.HttpMethod.GET,
+                entity,
+                (Class<java.util.Map<String, Object>>) (Class<?>) java.util.Map.class
+            );
+
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                @SuppressWarnings("unchecked")
+                java.util.Map<String, Object> data = (java.util.Map<String, Object>) response.getBody().get("data");
+                if (data != null && data.get("id") != null) {
+                    return Long.valueOf(data.get("id").toString());
+                }
+            }
+        } catch (Exception e) {
+            log.error("Gagal mendapatkan customer ID untuk email: " + email, e);
+        }
+        return null;
     }
 
     public void publishOrderCompletedEvent(Long orderId) {
